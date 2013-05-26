@@ -106,7 +106,7 @@ import org.candlepin.service.ProductServiceAdapter;
 import org.candlepin.service.SubscriptionServiceAdapter;
 import org.candlepin.service.UserServiceAdapter;
 import org.candlepin.sync.ExportCreationException;
-import org.candlepin.sync.Exporter;
+import org.candlepin.sync.ManifestExporter;
 import org.candlepin.util.Util;
 import org.candlepin.version.CertVersionConflictException;
 import org.jboss.resteasy.annotations.providers.jaxb.Wrapped;
@@ -139,7 +139,7 @@ public class ConsumerResource {
     private EventCurator eventCurator;
     private EventAdapter eventAdapter;
     private static final int FEED_LIMIT = 1000;
-    private Exporter exporter;
+    private ManifestExporter exporter;
     private PoolManager poolManager;
     private PoolCurator poolCurator;
     private ConsumerRules consumerRules;
@@ -162,7 +162,7 @@ public class ConsumerResource {
         EntitlementCertServiceAdapter entCertServiceAdapter, I18n i18n,
         EventSink sink, EventFactory eventFactory, EventCurator eventCurator,
         EventAdapter eventAdapter, UserServiceAdapter userService,
-        Exporter exporter, PoolManager poolManager, PoolCurator poolCurator,
+        ManifestExporter exporter, PoolManager poolManager, PoolCurator poolCurator,
         ConsumerRules consumerRules, OwnerCurator ownerCurator,
         ActivationKeyCurator activationKeyCurator, Entitler entitler,
         ComplianceRules complianceRules, DeletedConsumerCurator deletedConsumerCurator,

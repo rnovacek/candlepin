@@ -59,8 +59,8 @@ import com.google.inject.Inject;
 /**
  * Exporter
  */
-public class Exporter {
-    private static Logger log = Logger.getLogger(Exporter.class);
+public class ManifestExporter {
+    private static Logger log = Logger.getLogger(ManifestExporter.class);
 
     private ObjectMapper mapper;
 
@@ -87,7 +87,7 @@ public class Exporter {
     private static final String LEGACY_RULES_FILE = "/rules/default-rules.js";
 
     @Inject
-    public Exporter(ConsumerTypeCurator consumerTypeCurator, MetaExporter meta,
+    public ManifestExporter(ConsumerTypeCurator consumerTypeCurator, MetaExporter meta,
         ConsumerExporter consumerExporter, ConsumerTypeExporter consumerType,
         RulesExporter rules, EntitlementCertExporter entCert,
         EntitlementCertServiceAdapter entCertAdapter, ProductExporter productExporter,

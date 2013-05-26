@@ -209,7 +209,7 @@ public class ExporterTest {
             .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
-        Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
+        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
             pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
 
         File export = e.getFullExport(consumer);
@@ -256,7 +256,7 @@ public class ExporterTest {
         when(pki.getPemEncoded(keyPair.getPublicKey()))
             .thenReturn("publicKey".getBytes());
 
-        Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
+        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
             pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
 
         e.getFullExport(consumer);
@@ -293,7 +293,7 @@ public class ExporterTest {
             .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
-        Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
+        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
             pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
         File export = e.getFullExport(consumer);
 
@@ -339,7 +339,7 @@ public class ExporterTest {
             .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
-        Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
+        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
             pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
         File export = e.getFullExport(consumer);
 
@@ -386,7 +386,7 @@ public class ExporterTest {
         when(consumer.getType()).thenReturn(new ConsumerType(ConsumerTypeEnum.CANDLEPIN));
 
         // FINALLY test this badboy
-        Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
+        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
             pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
         File export = e.getFullExport(consumer);
 
@@ -440,7 +440,7 @@ public class ExporterTest {
         when(dvc.findAll()).thenReturn(dvList);
 
         // FINALLY test this badboy
-        Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
+        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
             pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
         File export = e.getFullExport(consumer);
 

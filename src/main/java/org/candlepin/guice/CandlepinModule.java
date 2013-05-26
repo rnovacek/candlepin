@@ -92,7 +92,7 @@ import org.candlepin.service.impl.DefaultUniqueIdGenerator;
 import org.candlepin.sync.ConsumerExporter;
 import org.candlepin.sync.ConsumerTypeExporter;
 import org.candlepin.sync.EntitlementCertExporter;
-import org.candlepin.sync.Exporter;
+import org.candlepin.sync.ManifestExporter;
 import org.candlepin.sync.MetaExporter;
 import org.candlepin.sync.RulesExporter;
 import org.candlepin.util.DateSource;
@@ -198,7 +198,7 @@ public class CandlepinModule extends AbstractModule {
         bind(CertificateRevocationListTask.class);
         bind(JobCleaner.class);
 
-        bind(Exporter.class).asEagerSingleton();
+        bind(ManifestExporter.class).asEagerSingleton();
         bind(MetaExporter.class);
         bind(ConsumerTypeExporter.class);
         bind(ConsumerExporter.class);
