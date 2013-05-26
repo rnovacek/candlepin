@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 
 import org.candlepin.exceptions.CandlepinException;
 import org.candlepin.exceptions.ExceptionMessage;
-import org.candlepin.sync.ImportExtractionException;
+import org.candlepin.manifest.ImportExtractionException;
 import org.candlepin.util.VersionUtil;
 import org.jboss.resteasy.spi.BadRequestException;
 import org.jboss.resteasy.spi.DefaultOptionsMethodException;
