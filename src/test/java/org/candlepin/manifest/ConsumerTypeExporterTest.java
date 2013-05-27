@@ -15,20 +15,22 @@
 package org.candlepin.manifest;
 
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import org.candlepin.config.Config;
-import org.candlepin.manifest.ConsumerTypeExporter;
-import org.candlepin.manifest.SyncUtils;
 import org.candlepin.model.ConsumerType;
+import org.candlepin.model.ConsumerTypeCurator;
 import org.candlepin.test.TestUtil;
-
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Test;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
-
 /**
  * ConsumerTypeExporterTest
  */
@@ -36,21 +38,36 @@ public class ConsumerTypeExporterTest {
 
     @Test
     public void testConsumerTypeExport() throws IOException {
+        File f = new File("/tmp/");
+
         ObjectMapper mapper = SyncUtils.getObjectMapper(
             new Config(new HashMap<String, String>()));
 
-        ConsumerTypeExporter consumerType = new ConsumerTypeExporter();
+        ConsumerTypeCurator curator = mock(ConsumerTypeCurator.class);
 
-        StringWriter writer = new StringWriter();
+        ConsumerTypeExporter consumerType = new ConsumerTypeExporter(curator);
+        when(curator.listAll()).thenReturn(new ArrayList<ConsumerType>() {
+            {
+                add(new ConsumerType("TESTTYPE"));
+            }
+        });
 
-        ConsumerType type = new ConsumerType("TESTTYPE");
+        consumerType.export(mapper, f);
 
-        consumerType.export(mapper, writer, type);
+        FileReader fr = new FileReader(new File("/tmp/consumer_types/TESTTYPE.json"));
+        BufferedReader br = new BufferedReader(fr);
+        StringBuffer buf = new StringBuffer();
+        String line;
+        while ((line = br.readLine()) != null) {
+            buf.append(line);
+        }
+        br.close();
 
         StringBuffer json = new StringBuffer();
         json.append("{\"id\":null,\"label\":\"TESTTYPE\",");
         json.append("\"manifest\":false}");
-        assertTrue(TestUtil.isJsonEqual(json.toString(), writer.toString()));
+        assertTrue(TestUtil.isJsonEqual(json.toString(), buf.toString()));
     }
+
 
 }

@@ -14,20 +14,82 @@
  */
 package org.candlepin.manifest;
 
-import java.io.IOException;
-import java.io.Writer;
+import com.google.inject.Inject;
 
-import org.codehaus.jackson.map.ObjectMapper;
+import org.apache.commons.lang.StringUtils;
+import org.candlepin.model.Consumer;
+import org.candlepin.model.Entitlement;
 import org.candlepin.model.Product;
+import org.candlepin.model.ProductCertificate;
+import org.candlepin.model.ProvidedProduct;
+import org.candlepin.service.ProductServiceAdapter;
+import org.codehaus.jackson.map.ObjectMapper;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * ProductExporter
  */
 public class ProductExporter {
+    private ProductServiceAdapter productAdapter;
 
-    public void export(ObjectMapper mapper, Writer writer, Product product)
+    @Inject
+    ProductExporter(ProductServiceAdapter adapter) {
+        productAdapter = adapter;
+    }
+
+    public void export(ObjectMapper mapper, File baseDir, Consumer consumer)
         throws IOException {
-        mapper.writeValue(writer, product);
+
+        File productDir = new File(baseDir.getCanonicalPath(), "products");
+        productDir.mkdir();
+
+        Map<String, Product> products = new HashMap<String, Product>();
+        for (Entitlement entitlement : consumer.getEntitlements()) {
+
+            for (ProvidedProduct providedProduct : entitlement.getPool().
+                getProvidedProducts()) {
+                // Don't want to call the adapter if not needed, it can be expensive.
+                if (!products.containsKey(providedProduct.getProductId())) {
+                    products.put(providedProduct.getProductId(),
+                        productAdapter.getProductById(providedProduct.getProductId()));
+                }
+            }
+
+            // Don't forget the 'main' product!
+            String productId = entitlement.getPool().getProductId();
+            if (!products.containsKey(productId)) {
+                products.put(productId, productAdapter.getProductById(productId));
+            }
+        }
+
+        for (Product product : products.values()) {
+            String path = productDir.getCanonicalPath();
+            String productId = product.getId();
+            File file = new File(path, productId + ".json");
+            FileWriter writer = new FileWriter(file);
+            mapper.writeValue(writer, product);
+            writer.close();
+
+            // Real products have a numeric id.
+            if (StringUtils.isNumeric(product.getId())) {
+                ProductCertificate cert = productAdapter.getProductCertificate(product);
+                // XXX: not all product adapters implement getProductCertificate,
+                // so just skip over this if we get null back
+                // XXX: need to decide if the cert should always be in the export, or never.
+                if (cert != null) {
+                    file = new File(productDir.getCanonicalPath(),
+                        product.getId() + ".pem");
+                    writer = new FileWriter(file);
+                    writer.write(cert.getCert());
+                    writer.close();
+                }
+            }
+        }
     }
 
 }

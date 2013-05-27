@@ -31,8 +31,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.candlepin.config.Config;
-import org.candlepin.manifest.ProductImporter;
-import org.candlepin.manifest.SyncUtils;
 import org.candlepin.model.Content;
 import org.candlepin.model.ContentCurator;
 import org.candlepin.model.Product;

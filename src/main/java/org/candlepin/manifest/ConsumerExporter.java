@@ -14,8 +14,9 @@
  */
 package org.candlepin.manifest;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 
 import org.codehaus.jackson.map.ObjectMapper;
 import org.candlepin.model.Consumer;
@@ -31,11 +32,13 @@ public class ConsumerExporter {
     ConsumerExporter() {
     }
 
-    void export(ObjectMapper mapper, Writer writer, Consumer consumer,
+    void export(ObjectMapper mapper, File baseDir, Consumer consumer,
         String weburl, String apiurl) throws IOException {
         ConsumerDto dto = new ConsumerDto(consumer.getUuid(), consumer.getName(),
             consumer.getType(), consumer.getOwner(), weburl, apiurl);
-
+        File file = new File(baseDir.getCanonicalPath(), "consumer.json");
+        FileWriter writer = new FileWriter(file);
         mapper.writeValue(writer, dto);
+        writer.close();
     }
 }

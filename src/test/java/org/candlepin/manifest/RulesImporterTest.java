@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.StringReader;
 
 import org.candlepin.audit.EventSink;
-import org.candlepin.manifest.RulesImporter;
 import org.candlepin.model.Rules;
 import org.candlepin.model.RulesCurator;
 import org.candlepin.test.DatabaseTestFixture;

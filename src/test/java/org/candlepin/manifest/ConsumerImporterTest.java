@@ -24,14 +24,6 @@ import static org.mockito.Mockito.when;
 
 import org.candlepin.config.Config;
 import org.candlepin.config.ConfigProperties;
-import org.candlepin.manifest.ConflictOverrides;
-import org.candlepin.manifest.ConsumerDto;
-import org.candlepin.manifest.ConsumerImporter;
-import org.candlepin.manifest.ImportConflictException;
-import org.candlepin.manifest.Importer;
-import org.candlepin.manifest.ImporterException;
-import org.candlepin.manifest.SyncDataFormatException;
-import org.candlepin.manifest.SyncUtils;
 import org.candlepin.model.CertificateSerial;
 import org.candlepin.model.CertificateSerialCurator;
 import org.candlepin.model.IdentityCertificate;

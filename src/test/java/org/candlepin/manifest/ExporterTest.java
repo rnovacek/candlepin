@@ -49,20 +49,6 @@ import org.candlepin.config.CandlepinCommonTestConfig;
 import org.candlepin.config.Config;
 import org.candlepin.config.ConfigProperties;
 import org.candlepin.guice.PrincipalProvider;
-import org.candlepin.manifest.ConsumerDto;
-import org.candlepin.manifest.ConsumerExporter;
-import org.candlepin.manifest.ConsumerTypeExporter;
-import org.candlepin.manifest.DistributorVersionExporter;
-import org.candlepin.manifest.EntitlementCertExporter;
-import org.candlepin.manifest.EntitlementExporter;
-import org.candlepin.manifest.ExportCreationException;
-import org.candlepin.manifest.ManifestExporter;
-import org.candlepin.manifest.Meta;
-import org.candlepin.manifest.MetaExporter;
-import org.candlepin.manifest.ProductCertExporter;
-import org.candlepin.manifest.ProductExporter;
-import org.candlepin.manifest.RulesExporter;
-import org.candlepin.manifest.SyncUtils;
 import org.candlepin.model.CertificateSerial;
 import org.candlepin.model.Consumer;
 import org.candlepin.model.ConsumerType;
@@ -105,7 +91,6 @@ public class ExporterTest {
     private EntitlementCertServiceAdapter ecsa;
     private ProductExporter pe;
     private ProductServiceAdapter psa;
-    private ProductCertExporter pce;
     private EntitlementCurator ec;
     private DistributorVersionCurator dvc;
     private DistributorVersionExporter dve;
@@ -114,28 +99,29 @@ public class ExporterTest {
     private CandlepinCommonTestConfig config;
     private ExportRules exportRules;
     private PrincipalProvider pprov;
+    private IdentityCertificateExporter ide;
 
     @Before
     public void setUp() {
         ctc = mock(ConsumerTypeCurator.class);
-        me = new MetaExporter();
+        pprov = mock(PrincipalProvider.class);
+        exportRules = mock(ExportRules.class);
+        ecsa = mock(EntitlementCertServiceAdapter.class);
+        pki = mock(PKIUtility.class);
+        psa = mock(ProductServiceAdapter.class);
+        ec = mock(EntitlementCurator.class);
+        dvc = mock(DistributorVersionCurator.class);
+        me = new MetaExporter(pprov);
         ce = new ConsumerExporter();
-        cte = new ConsumerTypeExporter();
+        cte = new ConsumerTypeExporter(ctc);
         rc = mock(RulesCurator.class);
         re = new RulesExporter(rc);
-        ece = new EntitlementCertExporter();
-        ecsa = mock(EntitlementCertServiceAdapter.class);
-        pe = new ProductExporter();
-        psa = mock(ProductServiceAdapter.class);
-        pce = new ProductCertExporter();
-        ec = mock(EntitlementCurator.class);
-        ee = new EntitlementExporter();
-        pki = mock(PKIUtility.class);
+        ece = new EntitlementCertExporter(exportRules, ecsa);
+        pe = new ProductExporter(psa);
+        ee = new EntitlementExporter(ec, exportRules);
         config = new CandlepinCommonTestConfig();
-        exportRules = mock(ExportRules.class);
-        pprov = mock(PrincipalProvider.class);
-        dvc = mock(DistributorVersionCurator.class);
-        dve = new DistributorVersionExporter();
+        dve = new DistributorVersionExporter(dvc);
+        ide = new IdentityCertificateExporter();
 
         when(exportRules.canExport(any(Entitlement.class))).thenReturn(Boolean.TRUE);
     }
@@ -223,8 +209,8 @@ public class ExporterTest {
             .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
-        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
-            pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
+        ManifestExporter e = new ManifestExporter(me, ce, cte, re, ece, pe,
+            ee, pki, config, ide, dve);
 
         File export = e.getFullExport(consumer);
 
@@ -270,8 +256,8 @@ public class ExporterTest {
         when(pki.getPemEncoded(keyPair.getPublicKey()))
             .thenReturn("publicKey".getBytes());
 
-        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
-            pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
+        ManifestExporter e = new ManifestExporter(me, ce, cte, re, ece, pe,
+            ee, pki, config, ide, dve);
 
         e.getFullExport(consumer);
     }
@@ -307,8 +293,8 @@ public class ExporterTest {
             .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
-        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
-            pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
+        ManifestExporter e = new ManifestExporter(me, ce, cte, re, ece, pe,
+            ee, pki, config, ide, dve);
         File export = e.getFullExport(consumer);
 
         // VERIFY
@@ -353,8 +339,8 @@ public class ExporterTest {
             .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
-        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
-            pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
+        ManifestExporter e = new ManifestExporter(me, ce, cte, re, ece, pe,
+            ee, pki, config, ide, dve);
         File export = e.getFullExport(consumer);
 
         // VERIFY
@@ -400,8 +386,8 @@ public class ExporterTest {
         when(consumer.getType()).thenReturn(new ConsumerType(ConsumerTypeEnum.CANDLEPIN));
 
         // FINALLY test this badboy
-        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
-            pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
+        ManifestExporter e = new ManifestExporter(me, ce, cte, re, ece, pe,
+            ee, pki, config, ide, dve);
         File export = e.getFullExport(consumer);
 
         verifyContent(export, "export/consumer.json",
@@ -454,8 +440,8 @@ public class ExporterTest {
         when(dvc.findAll()).thenReturn(dvList);
 
         // FINALLY test this badboy
-        ManifestExporter e = new ManifestExporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
-            pce, ec, ee, pki, config, exportRules, pprov, dvc, dve);
+        ManifestExporter e = new ManifestExporter(me, ce, cte, re, ece, pe,
+            ee, pki, config, ide, dve);
         File export = e.getFullExport(consumer);
 
         verifyContent(export, "export/distributor_version/test-dist-ver.json",

@@ -14,25 +14,37 @@
  */
 package org.candlepin.manifest;
 
-import java.io.IOException;
-import java.io.Writer;
-
-import org.codehaus.jackson.map.ObjectMapper;
-import org.candlepin.model.ConsumerType;
-
 import com.google.inject.Inject;
+
+import org.candlepin.model.ConsumerType;
+import org.candlepin.model.ConsumerTypeCurator;
+import org.codehaus.jackson.map.ObjectMapper;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 
 /**
  * ConsumerTypeExporter
  */
 public class ConsumerTypeExporter {
+    private ConsumerTypeCurator consumerTypeCurator;
 
     @Inject
-    ConsumerTypeExporter() {
+    ConsumerTypeExporter(ConsumerTypeCurator curator) {
+        consumerTypeCurator = curator;
     }
 
-    void export(ObjectMapper mapper, Writer writer, ConsumerType consumerType)
+    void export(ObjectMapper mapper, File baseDir)
         throws IOException {
-        mapper.writeValue(writer, consumerType);
+        File typeDir = new File(baseDir.getCanonicalPath(), "consumer_types");
+        typeDir.mkdir();
+
+        for (ConsumerType type : consumerTypeCurator.listAll()) {
+            File file = new File(typeDir.getCanonicalPath(), type.getLabel() + ".json");
+            FileWriter writer = new FileWriter(file);
+            mapper.writeValue(writer, type);
+            writer.close();
+        }
     }
 }

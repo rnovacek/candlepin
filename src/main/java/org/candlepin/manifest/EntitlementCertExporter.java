@@ -14,19 +14,57 @@
  */
 package org.candlepin.manifest;
 
-import java.io.IOException;
-import java.io.Writer;
+import com.google.inject.Inject;
 
+import org.apache.log4j.Logger;
+import org.candlepin.model.Consumer;
 import org.candlepin.model.EntitlementCertificate;
+import org.candlepin.policy.js.export.ExportRules;
+import org.candlepin.service.EntitlementCertServiceAdapter;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Set;
 
 /**
  * EntitlementCertExporter
  */
 public class EntitlementCertExporter {
+    private static Logger log = Logger.getLogger(EntitlementCertExporter.class);
+    private EntitlementCertServiceAdapter entCertAdapter;
+    private ExportRules exportRules;
 
-    void export(Writer writer, EntitlementCertificate cert)
+    @Inject
+    EntitlementCertExporter(ExportRules rules, EntitlementCertServiceAdapter adapter) {
+        exportRules = rules;
+        entCertAdapter = adapter;
+    }
+
+    void export(File baseDir, Consumer consumer, Set<Long> serials, boolean manifest)
         throws IOException {
-        writer.write(cert.getCert());
-        writer.write(cert.getKey());
+
+        File entCertDir = new File(baseDir.getCanonicalPath(), "entitlement_certificates");
+        entCertDir.mkdir();
+
+        for (EntitlementCertificate cert : entCertAdapter.listForConsumer(consumer)) {
+            if (manifest && !this.exportRules.canExport(cert.getEntitlement())) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Skipping export of entitlement cert with product:  " +
+                            cert.getEntitlement().getProductId());
+                }
+                continue;
+            }
+
+            if ((serials == null) || (serials.contains(cert.getSerial().getId()))) {
+                log.debug("Exporting entitlement certificate: " + cert.getSerial());
+                File file = new File(entCertDir.getCanonicalPath(),
+                    cert.getSerial().getId() + ".pem");
+                FileWriter writer = new FileWriter(file);
+                writer.write(cert.getCert());
+                writer.write(cert.getKey());
+                writer.close();
+            }
+        }
     }
 }

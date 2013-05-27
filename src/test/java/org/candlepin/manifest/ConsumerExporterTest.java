@@ -16,13 +16,12 @@ package org.candlepin.manifest;
 
 import static org.junit.Assert.assertTrue;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.HashMap;
 
 import org.candlepin.config.Config;
-import org.candlepin.manifest.ConsumerExporter;
-import org.candlepin.manifest.SyncUtils;
 import org.candlepin.model.Consumer;
 import org.candlepin.model.ConsumerType;
 import org.candlepin.test.TestUtil;
@@ -50,7 +49,9 @@ public class ConsumerExporterTest {
         consumer.setName("testy consumer");
         consumer.setType(ctype);
 
-        exporter.export(mapper, writer, consumer, "/subscriptions", "/candlepin");
+        File baseDir = new File("/tmp");
+        //exporter.export(mapper, writer, consumer, "/subscriptions", "/candlepin");
+        exporter.export(mapper, baseDir, consumer, "/subscriptions", "/candlepin");
 
         StringBuffer json = new StringBuffer();
         json.append("{\"uuid\":\"").append(consumer.getUuid()).append("\",");

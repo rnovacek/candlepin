@@ -15,17 +15,21 @@
 package org.candlepin.manifest;
 
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
+import org.candlepin.config.Config;
+import org.candlepin.model.Consumer;
+import org.candlepin.model.Product;
+import org.candlepin.service.ProductServiceAdapter;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.junit.Test;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.HashMap;
-
-import org.codehaus.jackson.map.ObjectMapper;
-import org.candlepin.config.Config;
-import org.candlepin.manifest.ProductExporter;
-import org.candlepin.manifest.SyncUtils;
-import org.candlepin.model.Product;
-import org.junit.Test;
 
 /**
  * ProductExporterTest
@@ -33,15 +37,28 @@ import org.junit.Test;
 public class ProductExporterTest {
     @Test
     public void testProductExport() throws IOException {
+        File baseDir = new File("/tmp");
         ObjectMapper mapper = SyncUtils.getObjectMapper(
             new Config(new HashMap<String, String>()));
 
-        ProductExporter exporter = new ProductExporter();
+        ProductServiceAdapter psa = mock(ProductServiceAdapter.class);
+        Consumer consumer = mock(Consumer.class);
+        ProductExporter exporter = new ProductExporter(psa);
 
         StringWriter writer = new StringWriter();
 
         Product product = new Product("my-id", "product name");
-        exporter.export(mapper, writer, product);
+        exporter.export(mapper, baseDir, consumer);
+
+        FileReader fr = new FileReader(new File("/tmp/products/TESTTYPE.json"));
+        BufferedReader br = new BufferedReader(fr);
+        StringBuffer buf = new StringBuffer();
+        String line;
+        while ((line = br.readLine()) != null) {
+            buf.append(line);
+        }
+        br.close();
+
         String s = writer.toString();
         assertTrue(s.contains("\"name\":\"product name\""));
         assertTrue(s.contains("\"id\":\"my-id\""));

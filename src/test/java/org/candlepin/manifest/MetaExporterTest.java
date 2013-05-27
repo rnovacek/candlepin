@@ -15,15 +15,19 @@
 package org.candlepin.manifest;
 
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import org.candlepin.auth.Principal;
 import org.candlepin.config.Config;
-import org.candlepin.manifest.Meta;
-import org.candlepin.manifest.MetaExporter;
-import org.candlepin.manifest.SyncUtils;
+import org.candlepin.guice.PrincipalProvider;
 import org.candlepin.test.TestUtil;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Test;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Date;
@@ -36,26 +40,39 @@ public class MetaExporterTest {
 
     @Test
     public void testMetaExporter() throws IOException {
+        File baseDir = new File("/tmp/");
+
         ObjectMapper mapper = SyncUtils.getObjectMapper(
             new Config(new HashMap<String, String>()));
 
-        MetaExporter metaEx = new MetaExporter();
+        PrincipalProvider pprov = mock(PrincipalProvider.class);
+        Principal principal = mock(Principal.class);
+        when(pprov.get()).thenReturn(principal);
+        when(principal.getPrincipalName()).thenReturn("myUsername");
+        MetaExporter metaEx = new MetaExporter(pprov);
         StringWriter writer = new StringWriter();
         Meta meta = new Meta();
         Date now = new Date();
         String nowString = mapper.convertValue(now, String.class);
         meta.setVersion("0.1.0");
         meta.setCreated(now);
-        meta.setPrincipalName("myUsername");
-        meta.setWebAppPrefix("webapp_prefix");
 
-        metaEx.export(mapper, writer, meta);
+        metaEx.export(mapper, baseDir, "webapp_prefix");
 
+        FileReader fr = new FileReader(new File("/tmp/meta.json"));
+        BufferedReader br = new BufferedReader(fr);
+        StringBuffer buf = new StringBuffer();
+        String line;
+        while ((line = br.readLine()) != null) {
+            buf.append(line);
+        }
+        br.close();
+        System.out.println(buf.toString());
         StringBuffer json = new StringBuffer();
         json.append("{\"version\":\"0.1.0\",\"created\":\"").append(nowString);
         json.append("\",\"principalName\":\"myUsername\",");
         json.append("\"webAppPrefix\":\"webapp_prefix\"}");
-        assertTrue(TestUtil.isJsonEqual(json.toString(), writer.toString()));
+        assertTrue(TestUtil.isJsonEqual(json.toString(), buf.toString()));
     }
 
 }

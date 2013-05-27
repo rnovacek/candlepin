@@ -22,7 +22,6 @@ import static org.mockito.Mockito.when;
 
 import org.candlepin.audit.Event;
 import org.candlepin.audit.EventSink;
-import org.candlepin.manifest.EntitlementImporter;
 import org.candlepin.model.Owner;
 import org.candlepin.model.Product;
 import org.candlepin.model.Subscription;

@@ -14,47 +14,24 @@
  */
 package org.candlepin.manifest;
 
+import com.google.inject.Inject;
+
+import org.apache.log4j.Logger;
+import org.candlepin.config.Config;
+import org.candlepin.config.ConfigProperties;
+import org.candlepin.model.Consumer;
+import org.candlepin.pki.PKIUtility;
+import org.codehaus.jackson.map.ObjectMapper;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
-import org.candlepin.config.Config;
-import org.candlepin.config.ConfigProperties;
-import org.candlepin.guice.PrincipalProvider;
-import org.candlepin.model.Consumer;
-import org.candlepin.model.ConsumerType;
-import org.candlepin.model.ConsumerTypeCurator;
-import org.candlepin.model.DistributorVersion;
-import org.candlepin.model.DistributorVersionCurator;
-import org.candlepin.model.Entitlement;
-import org.candlepin.model.EntitlementCertificate;
-import org.candlepin.model.EntitlementCurator;
-import org.candlepin.model.IdentityCertificate;
-import org.candlepin.model.Product;
-import org.candlepin.model.ProductCertificate;
-import org.candlepin.model.ProvidedProduct;
-import org.candlepin.pki.PKIUtility;
-import org.candlepin.policy.js.export.ExportRules;
-import org.candlepin.service.EntitlementCertServiceAdapter;
-import org.candlepin.service.ProductServiceAdapter;
-import org.candlepin.util.VersionUtil;
-import org.codehaus.jackson.map.ObjectMapper;
-
-import com.google.inject.Inject;
 
 /**
  * Exporter
@@ -67,55 +44,38 @@ public class ManifestExporter {
     private MetaExporter meta;
     private ConsumerExporter consumerExporter;
     private ProductExporter productExporter;
-    private ProductCertExporter productCertExporter;
     private ConsumerTypeExporter consumerType;
     private RulesExporter rules;
     private EntitlementCertExporter entCert;
     private EntitlementExporter entExporter;
-    private DistributorVersionCurator distVerCurator;
     private DistributorVersionExporter distVerExporter;
 
-    private ConsumerTypeCurator consumerTypeCurator;
-    private EntitlementCertServiceAdapter entCertAdapter;
-    private ProductServiceAdapter productAdapter;
-    private EntitlementCurator entitlementCurator;
     private PKIUtility pki;
     private Config config;
-    private ExportRules exportRules;
-    private PrincipalProvider principalProvider;
+    private IdentityCertificateExporter idcertExporter;
 
-    private static final String LEGACY_RULES_FILE = "/rules/default-rules.js";
 
     @Inject
-    public ManifestExporter(ConsumerTypeCurator consumerTypeCurator, MetaExporter meta,
+    public ManifestExporter(MetaExporter meta,
         ConsumerExporter consumerExporter, ConsumerTypeExporter consumerType,
         RulesExporter rules, EntitlementCertExporter entCert,
-        EntitlementCertServiceAdapter entCertAdapter, ProductExporter productExporter,
-        ProductServiceAdapter productAdapter, ProductCertExporter productCertExporter,
-        EntitlementCurator entitlementCurator, EntitlementExporter entExporter,
-        PKIUtility pki, Config config, ExportRules exportRules,
-        PrincipalProvider principalProvider, DistributorVersionCurator distVerCurator,
+        ProductExporter productExporter,
+        EntitlementExporter entExporter,
+        PKIUtility pki, Config config,
+        IdentityCertificateExporter idcertExporter,
         DistributorVersionExporter distVerExporter) {
-
-        this.consumerTypeCurator = consumerTypeCurator;
 
         this.meta = meta;
         this.consumerExporter = consumerExporter;
         this.consumerType = consumerType;
         this.rules = rules;
         this.entCert = entCert;
-        this.entCertAdapter = entCertAdapter;
         this.productExporter = productExporter;
-        this.productAdapter = productAdapter;
-        this.productCertExporter = productCertExporter;
-        this.entitlementCurator = entitlementCurator;
         this.entExporter = entExporter;
         this.pki = pki;
         this.config = config;
-        this.exportRules = exportRules;
-        this.principalProvider = principalProvider;
-        this.distVerCurator = distVerCurator;
         this.distVerExporter = distVerExporter;
+        this.idcertExporter = idcertExporter;
 
         mapper = SyncUtils.getObjectMapper(this.config);
     }
@@ -288,13 +248,7 @@ public class ManifestExporter {
     }
 
     private void exportMeta(File baseDir) throws IOException {
-        File file = new File(baseDir.getCanonicalPath(), "meta.json");
-        FileWriter writer = new FileWriter(file);
-        Meta m = new Meta(getVersion(), new Date(),
-            principalProvider.get().getPrincipalName(),
-            getPrefixWebUrl());
-        meta.export(mapper, writer, m);
-        writer.close();
+        meta.export(mapper, baseDir, getPrefixWebUrl());
     }
 
     private String getPrefixWebUrl() {
@@ -313,17 +267,9 @@ public class ManifestExporter {
         return prefixApiUrl;
     }
 
-    private String getVersion() {
-        Map<String, String> map = VersionUtil.getVersionMap();
-        return map.get("version") + "-" + map.get("release");
-    }
-
     private void exportConsumer(File baseDir, Consumer consumer) throws IOException {
-        File file = new File(baseDir.getCanonicalPath(), "consumer.json");
-        FileWriter writer = new FileWriter(file);
-        this.consumerExporter.export(mapper, writer, consumer, getPrefixWebUrl(),
+        this.consumerExporter.export(mapper, baseDir, consumer, getPrefixWebUrl(),
             getPrefixApiUrl());
-        writer.close();
     }
 
     private void exportEntitlementsCerts(File baseDir,
@@ -332,200 +278,33 @@ public class ManifestExporter {
                                          boolean manifest)
         throws IOException {
 
-        File entCertDir = new File(baseDir.getCanonicalPath(), "entitlement_certificates");
-        entCertDir.mkdir();
-
-        for (EntitlementCertificate cert : entCertAdapter.listForConsumer(consumer)) {
-            if (manifest && !this.exportRules.canExport(cert.getEntitlement())) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Skipping export of entitlement cert with product:  " +
-                            cert.getEntitlement().getProductId());
-                }
-                continue;
-            }
-
-            if ((serials == null) || (serials.contains(cert.getSerial().getId()))) {
-                log.debug("Exporting entitlement certificate: " + cert.getSerial());
-                File file = new File(entCertDir.getCanonicalPath(),
-                    cert.getSerial().getId() + ".pem");
-                FileWriter writer = new FileWriter(file);
-                entCert.export(writer, cert);
-                writer.close();
-            }
-        }
+        entCert.export(baseDir, consumer, serials, manifest);
     }
 
     private void exportIdentityCertificate(File baseDir, Consumer consumer)
         throws IOException {
 
-        File idcertdir = new File(baseDir.getCanonicalPath(), "upstream_consumer");
-        idcertdir.mkdir();
-
-        IdentityCertificate cert = consumer.getIdCert();
-        File file = new File(idcertdir.getCanonicalPath(),
-            cert.getSerial().getId() + ".json");
-
-        // paradigm dictates this should go in an exporter.export method
-        FileWriter writer = null;
-
-        try {
-            writer = new FileWriter(file);
-            mapper.writeValue(writer, cert);
-        }
-        finally {
-            if (writer != null) {
-                writer.close();
-            }
-        }
+        idcertExporter.export(mapper, baseDir, consumer);
     }
 
     private void exportEntitlements(File baseDir, Consumer consumer)
         throws IOException, ExportCreationException {
-        File entCertDir = new File(baseDir.getCanonicalPath(), "entitlements");
-        entCertDir.mkdir();
-
-        for (Entitlement ent : entitlementCurator.listByConsumer(consumer)) {
-            if (ent.getDirty()) {
-                log.error("Entitlement " + ent.getId() + " is marked as dirty.");
-                throw new ExportCreationException("Attempted to export dirty entitlements");
-            }
-
-            if (!this.exportRules.canExport(ent)) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Skipping export of entitlement with product:  " +
-                            ent.getProductId());
-                }
-
-                continue;
-            }
-
-            if (log.isDebugEnabled()) {
-                log.debug("Exporting entitlement for product" + ent.getProductId());
-            }
-            FileWriter writer = null;
-            try {
-                File file = new File(entCertDir.getCanonicalPath(), ent.getId() + ".json");
-                writer = new FileWriter(file);
-                entExporter.export(mapper, writer, ent);
-            }
-            finally {
-                if (writer != null) {
-                    writer.close();
-                }
-            }
-        }
+        entExporter.export(mapper, baseDir, consumer);
     }
 
     private void exportProducts(File baseDir, Consumer consumer) throws IOException {
-        File productDir = new File(baseDir.getCanonicalPath(), "products");
-        productDir.mkdir();
-
-        Map<String, Product> products = new HashMap<String, Product>();
-        for (Entitlement entitlement : consumer.getEntitlements()) {
-
-            for (ProvidedProduct providedProduct : entitlement.getPool().
-                getProvidedProducts()) {
-                // Don't want to call the adapter if not needed, it can be expensive.
-                if (!products.containsKey(providedProduct.getProductId())) {
-                    products.put(providedProduct.getProductId(),
-                        productAdapter.getProductById(providedProduct.getProductId()));
-                }
-            }
-
-            // Don't forget the 'main' product!
-            String productId = entitlement.getPool().getProductId();
-            if (!products.containsKey(productId)) {
-                products.put(productId, productAdapter.getProductById(productId));
-            }
-        }
-
-        for (Product product : products.values()) {
-            String path = productDir.getCanonicalPath();
-            String productId = product.getId();
-            File file = new File(path, productId + ".json");
-            FileWriter writer = new FileWriter(file);
-            productExporter.export(mapper, writer, product);
-            writer.close();
-
-            // Real products have a numeric id.
-            if (StringUtils.isNumeric(product.getId())) {
-                ProductCertificate cert = productAdapter.getProductCertificate(product);
-                // XXX: not all product adapters implement getProductCertificate,
-                // so just skip over this if we get null back
-                // XXX: need to decide if the cert should always be in the export, or never.
-                if (cert != null) {
-                    file = new File(productDir.getCanonicalPath(),
-                        product.getId() + ".pem");
-                    writer = new FileWriter(file);
-                    productCertExporter.export(writer, cert);
-                    writer.close();
-                }
-            }
-        }
+        productExporter.export(mapper, baseDir, consumer);
     }
 
     private void exportConsumerTypes(File baseDir) throws IOException {
-        File typeDir = new File(baseDir.getCanonicalPath(), "consumer_types");
-        typeDir.mkdir();
-
-        for (ConsumerType type : consumerTypeCurator.listAll()) {
-            File file = new File(typeDir.getCanonicalPath(), type.getLabel() + ".json");
-            FileWriter writer = new FileWriter(file);
-            consumerType.export(mapper, writer, type);
-            writer.close();
-        }
+        consumerType.export(mapper, baseDir);
     }
 
     private void exportRules(File baseDir) throws IOException {
-        // Because old candlepin servers assume to import a file in rules dir, we had to
-        // move to a new directory for versioned rules file:
-        File newRulesDir = new File(baseDir.getCanonicalPath(), "rules2");
-        newRulesDir.mkdir();
-        File newRulesFile = new File(newRulesDir.getCanonicalPath(), "rules.js");
-        FileWriter writer = new FileWriter(newRulesFile);
-        rules.export(writer);
-        writer.close();
-
-        exportLegacyRules(baseDir);
-    }
-
-    /*
-     * We still need to export a copy of the deprecated default-rules.js so new manifests
-     * can still be imported by old candlepin servers.
-     */
-    private void exportLegacyRules(File baseDir) throws IOException {
-        File oldRulesDir = new File(baseDir.getCanonicalPath(), "rules");
-        oldRulesDir.mkdir();
-        File oldRulesFile = new File(oldRulesDir.getCanonicalPath(), "default-rules.js");
-
-        // TODO: does this need a "exporter" object as well?
-        FileUtils.copyFile(new File(
-            this.getClass().getResource(LEGACY_RULES_FILE).getPath()),
-            oldRulesFile);
+        rules.export(baseDir);
     }
 
     private void exportDistributorVersions(File baseDir) throws IOException {
-        List<DistributorVersion> versions = distVerCurator.findAll();
-        if (versions == null || versions.isEmpty()) { return; }
-
-        File distVerDir = new File(baseDir.getCanonicalPath(), "distributor_version");
-        distVerDir.mkdir();
-
-        FileWriter writer = null;
-        for (DistributorVersion dv : versions) {
-            if (log.isDebugEnabled()) {
-                log.debug("Exporting Distributor Version" + dv.getName());
-            }
-            try {
-                File file = new File(distVerDir.getCanonicalPath(), dv.getName() + ".json");
-                writer = new FileWriter(file);
-                distVerExporter.export(mapper, writer, dv);
-            }
-            finally {
-                if (writer != null) {
-                    writer.close();
-                }
-            }
-        }
+        distVerExporter.export(mapper, baseDir);
     }
 }

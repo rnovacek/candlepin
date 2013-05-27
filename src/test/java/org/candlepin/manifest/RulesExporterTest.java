@@ -18,13 +18,13 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
-import java.io.StringWriter;
-
-import org.candlepin.manifest.RulesExporter;
 import org.candlepin.model.Rules;
 import org.candlepin.model.RulesCurator;
 import org.junit.Test;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.StringWriter;
 
 /**
  * RulesExporterTest
@@ -35,11 +35,12 @@ public class RulesExporterTest {
 
     @Test
     public void testMetaExporter() throws IOException {
+        File baseDir = new File("/tmp");
         RulesCurator rulesCurator = mock(RulesCurator.class);
         when(rulesCurator.getRules()).thenReturn(new Rules(FAKE_RULES));
         RulesExporter exporter = new RulesExporter(rulesCurator);
         StringWriter writer = new StringWriter();
-        exporter.export(writer);
+        exporter.export(baseDir);
         assertEquals(FAKE_RULES, writer.toString());
     }
 

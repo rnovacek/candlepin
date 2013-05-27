@@ -27,8 +27,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import org.candlepin.config.Config;
-import org.candlepin.manifest.ConsumerTypeImporter;
-import org.candlepin.manifest.SyncUtils;
 import org.candlepin.model.ConsumerType;
 import org.candlepin.model.ConsumerTypeCurator;
 import org.junit.Test;

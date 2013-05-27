@@ -16,23 +16,41 @@ package org.candlepin.manifest;
 
 import com.google.inject.Inject;
 
+import org.candlepin.guice.PrincipalProvider;
+import org.candlepin.util.VersionUtil;
 import org.codehaus.jackson.map.ObjectMapper;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
+import java.util.Date;
+import java.util.Map;
 
 /**
  * Meta maps to meta.json in the export
  *
  */
 public class MetaExporter {
+    private PrincipalProvider principalProvider;
 
     @Inject
-    MetaExporter() {
+    MetaExporter(PrincipalProvider provider) {
+        principalProvider = provider;
     }
 
-    void export(ObjectMapper mapper, Writer writer, Meta meta) throws IOException {
-        mapper.writeValue(writer, meta);
+    void export(ObjectMapper mapper, File baseDir, String url) throws IOException {
+        File file = new File(baseDir.getCanonicalPath(), "meta.json");
+        FileWriter writer = new FileWriter(file);
+        Meta m = new Meta(getVersion(), new Date(),
+            principalProvider.get().getPrincipalName(),
+            url);
+        mapper.writeValue(writer, m);
+        writer.close();
+    }
+
+    private String getVersion() {
+        Map<String, String> map = VersionUtil.getVersionMap();
+        return map.get("version") + "-" + map.get("release");
     }
 
 }

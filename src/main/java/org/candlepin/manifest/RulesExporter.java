@@ -14,9 +14,11 @@
  */
 package org.candlepin.manifest;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 
+import org.apache.commons.io.FileUtils;
 import org.candlepin.model.RulesCurator;
 
 import com.google.inject.Inject;
@@ -25,6 +27,7 @@ import com.google.inject.Inject;
  * RulesExporter
  */
 public class RulesExporter {
+    private static final String LEGACY_RULES_FILE = "/rules/default-rules.js";
 
     private RulesCurator rulesCurator;
 
@@ -33,8 +36,30 @@ public class RulesExporter {
         this.rulesCurator = rulesCurator;
     }
 
-    void export(Writer writer) throws IOException {
-        writer.write(rulesCurator.getRules().getRules());
+    void export(File baseDir) throws IOException {
+        exportNewRules(baseDir);
+        exportLegacyRules(baseDir);
     }
 
+    private void exportNewRules(File baseDir) throws IOException {
+        // Because old candlepin servers assume to import a file in rules dir, we had to
+        // move to a new directory for versioned rules file:
+        File newRulesDir = new File(baseDir.getCanonicalPath(), "rules2");
+        newRulesDir.mkdir();
+        File newRulesFile = new File(newRulesDir.getCanonicalPath(), "rules.js");
+        FileWriter writer = new FileWriter(newRulesFile);
+        writer.write(rulesCurator.getRules().getRules());
+        writer.close();
+    }
+
+    private void exportLegacyRules(File baseDir) throws IOException {
+        File oldRulesDir = new File(baseDir.getCanonicalPath(), "rules");
+        oldRulesDir.mkdir();
+        File oldRulesFile = new File(oldRulesDir.getCanonicalPath(), "default-rules.js");
+
+        // 8
+        FileUtils.copyFile(new File(
+            this.getClass().getResource(LEGACY_RULES_FILE).getPath()),
+            oldRulesFile);
+    }
 }
