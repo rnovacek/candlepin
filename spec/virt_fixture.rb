@@ -23,9 +23,9 @@ module VirtFixture
 
         #create two subs, to do migration testing
         @sub1 = @cp.create_subscription(@owner['key'],
-          @virt_limit_product.id, 10)
+          @virt_limit_product.id, 10, [], "123")
         @sub2 = @cp.create_subscription(@owner['key'],
-          @virt_limit_product.id, 10)
+          @virt_limit_product.id, 10, [], "456")
         @cp.refresh_pools(@owner['key'])
 
         @pools = @user.list_pools :owner => @owner.id, \

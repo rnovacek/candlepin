@@ -205,6 +205,17 @@ public class CandlepinPoolManager implements PoolManager {
         }
     }
 
+    public void reSourcePool(Pool pool, Entitlement newSourceEnt) {
+        String newSubscriptionId = newSourceEnt.getPool().getSubscriptionId();
+        pool.setSourceEntitlement(newSourceEnt);
+        pool.setSubscriptionId(newSubscriptionId);
+        Subscription sub = subAdapter.getSubscription(newSubscriptionId);
+        // Leverage regular update pools code to sync up everything that *may* have
+        // changed by re-sourcing the pool.
+        List<Pool> pools = Arrays.asList(pool);
+        regenerateCertificatesOf(updatePoolsForSubscription(pools, sub), true);
+    }
+
     /**
      * Update pool for subscription. - This method only checks for change in
      * quantity and dates of a subscription. Currently any quantity changes in
@@ -757,9 +768,7 @@ public class CandlepinPoolManager implements PoolManager {
      * and regenerated. False if we're mass deleting all the entitlements for a consumer
      * anyhow, true otherwise. Prevents a deadlock issue on mysql (at least).
      */
-    @Transactional
-    void removeEntitlement(Entitlement entitlement,
-        boolean regenModified) {
+    void removeEntitlement(Entitlement entitlement, boolean regenModified) {
 
         Consumer consumer = entitlement.getConsumer();
         Pool pool = entitlement.getPool();
@@ -774,7 +783,7 @@ public class CandlepinPoolManager implements PoolManager {
         // Look for pools referencing this entitlement as their source
         // entitlement and clean them up as well
         String stackId = pool.getProductAttributeValue("stacking_id");
-        boolean stacked = stackId == null;
+        boolean stacked = stackId != null;
         // Can this derived pool be re-parented?
         List<Entitlement> otherEnts =
             entitlementCurator.listEntsForReSource(stackId, entitlement);
@@ -792,8 +801,7 @@ public class CandlepinPoolManager implements PoolManager {
             if (newParent != null) {
                 log.info("Changing source entitlement for pool " + p.getId() +
                     ": " + p.getSourceEntitlement().getId() + " -> " + newParent.getId());
-                p.setSourceEntitlement(newParent);
-                // TODO: refresh here to correct end dates and other oddities?
+                reSourcePool(p, newParent);
                 continue;
             }
             Set<Entitlement> deletableEntitlements = new HashSet<Entitlement>();

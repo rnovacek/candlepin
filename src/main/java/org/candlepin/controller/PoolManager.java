@@ -117,6 +117,15 @@ public interface PoolManager {
 
     void regenerateEntitlementCertificates(Consumer consumer, boolean lazy);
 
+    /**
+     * Changes the source entitlement for a pool and uses refresh code to update the pool
+     * with all the data from it's (potentially) new subscription.
+     *
+     * @param pool derived pool
+     * @param newSourceEnt new source entitlement
+     */
+    public void reSourcePool(Pool pool, Entitlement newSourceEnt);
+
     int revokeAllEntitlements(Consumer consumer);
 
     int removeAllEntitlements(Consumer consumer);

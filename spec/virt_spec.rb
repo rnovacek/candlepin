@@ -46,11 +46,19 @@ describe 'Standalone Virt-Limit Subscriptions' do
 
   it 'should re-source guest pool when other stacked entitlements exist' do
     @cp.list_owner_pools(@owner['key']).length.should == 4
+    @guest_pool['sourceEntitlement']['id'].should == @host_ent['id']
+    @guest_pool['contractNumber'].should == "123"
     # Use another pool in the stack:
     host_ent_2 = @host1_client.consume_pool(@pools[1]['id'])[0]
     # No new guest pool should have been created because we already had one
     # for that stack:
     @cp.list_owner_pools(@owner['key']).length.should == 4
+
+    # Delete the original entitlement:
+    @host1_client.unbind_entitlement(@host_ent['id'])
+    @guest_pool = @host1_client.get_pool(@guest_pool['id'])
+    @guest_pool['sourceEntitlement']['id'].should == host_ent_2['id']
+    @guest_pool['contractNumber'].should == "456"
   end
 
   it 'should create a virt_only pool for hosts guests' do

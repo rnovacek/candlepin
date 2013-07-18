@@ -512,6 +512,8 @@ public class EntitlementCuratorTest extends DatabaseTestFixture {
 
         List<Entitlement> ents = entitlementCurator.listEntsForReSource("123",
             ent1);
+        // No other suitable pool, because the derived entitlement does not count as
+        // something we could re-source to:
         assertEquals(0, ents.size());
     }
 
