@@ -36,6 +36,7 @@ import org.candlepin.test.TestUtil;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -514,4 +515,140 @@ public class EntitlementCuratorTest extends DatabaseTestFixture {
         assertEquals(0, ents.size());
     }
 
+    @Test
+    public void listOtherEntsInStackPrefersActiveEntitlements() {
+        Consumer consumer = TestUtil.createConsumer(owner);
+        consumerTypeCurator.create(consumer.getType());
+        consumerCurator.create(consumer);
+
+        Product virtProduct = TestUtil.createProduct();
+        virtProduct.setAttribute("virt_limit", "4");
+        virtProduct.setAttribute("stacking_id", "123");
+        productCurator.create(virtProduct);
+
+        // Initial Entitlement
+        Entitlement initial = createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 2), createFutureDate(Calendar.MONTH, 3));
+
+        // Expired entitlement
+        createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 10), createPastDate(Calendar.MONTH, 6));
+
+        // Active entitlement
+        Entitlement expected = createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 8), createFutureDate(Calendar.MONTH, 5));
+
+        List<Entitlement> ents = entitlementCurator.listEntsForReSource("123", initial);
+        assertEquals(1, ents.size());
+        assertEquals(expected.getId(), ents.get(0).getId());
+    }
+
+    @Test
+    public void listOtherEntsInStackPreferActiveWithGreatestEndDate() {
+        Consumer consumer = TestUtil.createConsumer(owner);
+        consumerTypeCurator.create(consumer.getType());
+        consumerCurator.create(consumer);
+
+        Product virtProduct = TestUtil.createProduct();
+        virtProduct.setAttribute("virt_limit", "4");
+        virtProduct.setAttribute("stacking_id", "123");
+        productCurator.create(virtProduct);
+
+        // Initial Entitlement
+        Entitlement initial = createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 2), createFutureDate(Calendar.MONTH, 3));
+
+        // Active entitlement - ends sooner
+        Entitlement endsSooner = createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 2), createFutureDate(Calendar.MONTH, 3));
+
+        // Active entitlement - ends later
+        Entitlement endsLater = createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 2), createFutureDate(Calendar.MONTH, 6));
+
+        List<Entitlement> ents = entitlementCurator.listEntsForReSource("123", initial);
+        assertEquals(2, ents.size());
+        assertEquals(endsLater.getId(), ents.get(0).getId());
+        assertEquals(endsSooner.getId(), ents.get(1).getId());
+    }
+
+    @Test
+    public void listOtherEntsInStackPreferFutureEntsWhenNoActiveEntExists() {
+        Consumer consumer = TestUtil.createConsumer(owner);
+        consumerTypeCurator.create(consumer.getType());
+        consumerCurator.create(consumer);
+
+        Product virtProduct = TestUtil.createProduct();
+        virtProduct.setAttribute("virt_limit", "4");
+        virtProduct.setAttribute("stacking_id", "123");
+        productCurator.create(virtProduct);
+
+        // Initial Entitlement
+        Entitlement initial = createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 2), createFutureDate(Calendar.MONTH, 3));
+
+        // Expired entitlement
+        createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 10), createPastDate(Calendar.MONTH, 6));
+
+        // Future entitlement
+        Entitlement expected = createEntitlement(consumer, virtProduct,
+            createFutureDate(Calendar.MONTH, 8), createFutureDate(Calendar.MONTH, 12));
+
+        List<Entitlement> ents = entitlementCurator.listEntsForReSource("123", initial);
+        assertEquals(1, ents.size());
+        assertEquals(expected.getId(), ents.get(0).getId());
+    }
+
+    @Test
+    public void listOtherEntsInStackPreferFutureEntThatBecomesActiveSoonest() {
+        Consumer consumer = TestUtil.createConsumer(owner);
+        consumerTypeCurator.create(consumer.getType());
+        consumerCurator.create(consumer);
+
+        Product virtProduct = TestUtil.createProduct();
+        virtProduct.setAttribute("virt_limit", "4");
+        virtProduct.setAttribute("stacking_id", "123");
+        productCurator.create(virtProduct);
+
+        // Initial Entitlement
+        Entitlement initial = createEntitlement(consumer, virtProduct,
+            createPastDate(Calendar.MONTH, 2), createFutureDate(Calendar.MONTH, 3));
+
+        // Future entitlement - starts sooner
+        Entitlement startsSooner = createEntitlement(consumer, virtProduct,
+            createFutureDate(Calendar.MONTH, 4), createFutureDate(Calendar.MONTH, 6));
+
+        // Future entitlement - starts later
+        Entitlement startsLater = createEntitlement(consumer, virtProduct,
+            createFutureDate(Calendar.MONTH, 6), createFutureDate(Calendar.MONTH, 8));
+
+        List<Entitlement> ents = entitlementCurator.listEntsForReSource("123", initial);
+        assertEquals(2, ents.size());
+        assertEquals(startsSooner.getId(), ents.get(0).getId());
+        assertEquals(startsLater.getId(), ents.get(1).getId());
+    }
+
+    private Entitlement createEntitlement(Consumer consumer, Product product,
+        Date startDate, Date endDate) {
+        Pool pool = createPoolAndSub(owner, product, 1L, startDate, endDate);
+        poolCurator.create(pool);
+
+        Entitlement ent = new Entitlement(pool, consumer, pool.getStartDate(),
+            pool.getEndDate(), 1);
+        entitlementCurator.create(ent);
+        return ent;
+    }
+
+    private Date createPastDate(int calConstant, int unitsInPast) {
+        Calendar cal = Calendar.getInstance();
+        cal.add(calConstant, -1 * unitsInPast);
+        return cal.getTime();
+    }
+
+    private Date createFutureDate(int calConstant, int unitsInFuture) {
+        Calendar cal = Calendar.getInstance();
+        cal.add(calConstant, unitsInFuture);
+        return cal.getTime();
+    }
 }

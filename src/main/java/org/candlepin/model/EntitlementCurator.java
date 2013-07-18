@@ -25,12 +25,17 @@ import org.apache.log4j.Logger;
 import org.hibernate.Criteria;
 import org.hibernate.ReplicationMode;
 import org.hibernate.criterion.DetachedCriteria;
+import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Projections;
 import org.hibernate.criterion.Property;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.criterion.Subqueries;
 import org.xnap.commons.i18n.I18n;
 
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -342,6 +347,11 @@ public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
      * is used to search for entitlements we can re-parent a derived pool to, so any
      * other entitlements from a derived pool are not suitable.
      *
+     * Entitlements are returned in order of best fit. Active entitlements are preferred
+     * over future entitlements. When choosing between active entitlements, prefer
+     * ones that end last. When choosing between future entitlements, prefer ones that
+     * start first.
+     *
      * @param stackId Stack to search for.
      * @param excludeMe Pool's current source entitlement.
      * @return Other Entitlements in the stack.
@@ -355,12 +365,33 @@ public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
                 .add(Property.forName("pool.id").eqProperty("attr.pool.id"))
                 .setProjection(Projections.property("attr.id"));
 
-        Criteria query = currentSession().createCriteria(Entitlement.class)
+        Date now = Calendar.getInstance().getTime();
+
+        // Active now
+        Criteria activeNowQuery = currentSession().createCriteria(Entitlement.class)
             .add(Restrictions.eq("consumer", excludeMe.getConsumer()))
             .add(Restrictions.ne("id", excludeMe.getId()))
+            .add(Restrictions.le("startDate", now))
+            .add(Restrictions.ge("endDate", now))
+            .addOrder(Order.desc("endDate"))
             .createCriteria("pool")
                 .add(Restrictions.isNull("sourceEntitlement"))
                 .add(Subqueries.exists(stackCriteria));
-        return query.list();
+
+        // Active in the future
+        Criteria activeFutureQuery = currentSession().createCriteria(Entitlement.class)
+            .add(Restrictions.eq("consumer", excludeMe.getConsumer()))
+            .add(Restrictions.ne("id", excludeMe.getId()))
+            .add(Restrictions.gt("startDate", now))
+            .add(Restrictions.gt("endDate", now))
+            .addOrder(Order.asc("startDate"))
+            .createCriteria("pool")
+                .add(Restrictions.isNull("sourceEntitlement"))
+                .add(Subqueries.exists(stackCriteria));
+
+        List<Entitlement> all = new ArrayList<Entitlement>(activeNowQuery.list());
+        all.addAll(activeFutureQuery.list());
+
+        return all;
     }
 }
