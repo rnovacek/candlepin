@@ -14,6 +14,7 @@
  */
 package org.candlepin.model;
 
+import org.candlepin.exceptions.ConcurrentModificationException;
 import org.candlepin.paging.PageRequest;
 import org.candlepin.paging.Page;
 
@@ -23,6 +24,7 @@ import com.google.inject.persist.Transactional;
 
 import org.hibernate.Criteria;
 import org.hibernate.Session;
+import org.hibernate.StaleStateException;
 import org.hibernate.criterion.DetachedCriteria;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Projection;
@@ -37,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 
 import javax.persistence.EntityManager;
+import javax.persistence.OptimisticLockException;
 
 /**
  * AbstractHibernateCurator base class for all Candlepin curators. Curators are
@@ -283,7 +286,12 @@ public abstract class AbstractHibernateCurator<E extends Persisted> {
     }
 
     protected final void flush() {
-        getEntityManager().flush();
+        try {
+            getEntityManager().flush();
+        }
+        catch (OptimisticLockException e) {
+            throw new ConcurrentModificationException(e);
+        }
     }
 
     protected Session currentSession() {
@@ -296,13 +304,18 @@ public abstract class AbstractHibernateCurator<E extends Persisted> {
     }
 
     public void saveOrUpdateAll(List<E> entries) {
-        Session session = currentSession();
-        for (int i = 0; i < entries.size(); i++) {
-            session.saveOrUpdate(entries.get(i));
-            if (i % batchSize == 0) {
-                session.flush();
-                session.clear();
+        try {
+            Session session = currentSession();
+            for (int i = 0; i < entries.size(); i++) {
+                session.saveOrUpdate(entries.get(i));
+                if (i % batchSize == 0) {
+                    session.flush();
+                    session.clear();
+                }
             }
+        }
+        catch (OptimisticLockException e) {
+            throw new ConcurrentModificationException(e);
         }
 
     }
