@@ -12,9 +12,10 @@
  * granted to use or replicate Red Hat trademarks that are incorporated
  * in this software or its documentation.
  */
-package org.candlepin.pki;
+package org.candlepin.pki.impl;
 
 import org.bouncycastle.asn1.DEREncodable;
+import org.candlepin.pki.X509ExtensionWrapper;
 
 import java.io.IOException;
 import java.security.InvalidKeyException;

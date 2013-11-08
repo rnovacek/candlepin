@@ -36,7 +36,6 @@ import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.candlepin.pki.PKIReader;
 import org.candlepin.pki.PKIUtility;
-import org.candlepin.pki.SubjectKeyIdentifierWriter;
 import org.candlepin.pki.X509ByteExtensionWrapper;
 import org.candlepin.pki.X509CRLEntryWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
@@ -89,10 +88,14 @@ import javax.security.auth.x500.X500Principal;
 public class BouncyCastlePKIUtility extends PKIUtility {
     private static Logger log = Logger.getLogger(BouncyCastlePKIUtility.class);
 
+    protected SubjectKeyIdentifierWriter subjectKeyWriter;
+
     @Inject
     public BouncyCastlePKIUtility(PKIReader reader,
         SubjectKeyIdentifierWriter subjectKeyWriter) {
-        super(reader, subjectKeyWriter);
+
+        super(reader);
+        this.subjectKeyWriter = subjectKeyWriter;
     }
 
     @Override
