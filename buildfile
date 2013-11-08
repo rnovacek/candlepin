@@ -70,6 +70,8 @@ GETTEXT_COMMONS = 'org.xnap.commons:gettext-commons:jar:0.9.6'
 
 BOUNCYCASTLE = group('bcprov-jdk16', :under=>'org.bouncycastle', :version=>'1.46')
 
+JSS = group('jss4', :under=>'org.mozilla.jss', :version=>'4.2.6')
+
 GUICE =  [group('guice-assistedinject', 'guice-multibindings',
                 'guice-servlet', 'guice-throwingproviders', 'guice-persist',
                 :under=>'com.google.inject.extensions', :version=>'3.0'),
@@ -183,7 +185,7 @@ define "candlepin" do
   #
   compile.options.target = '1.6'
   compile.options.source = '1.6'
-  compile_classpath = [COMMONS, RESTEASY, LOG4J, HIBERNATE, BOUNCYCASTLE,
+  compile_classpath = [COMMONS, RESTEASY, LOG4J, HIBERNATE, BOUNCYCASTLE, JSS,
     GUICE, JACKSON, QUARTZ, GETTEXT_COMMONS, HORNETQ, SUN_JAXB, MIME4J, OAUTH, RHINO, COLLECTIONS]
   compile.with compile_classpath
   compile.with LOGDRIVER if use_logdriver
