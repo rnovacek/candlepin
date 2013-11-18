@@ -89,6 +89,7 @@ import org.candlepin.resource.SubscriptionResource;
 import org.candlepin.resource.UserResource;
 import org.candlepin.resteasy.JsonProvider;
 import org.candlepin.resteasy.interceptor.AuthInterceptor;
+import org.candlepin.resteasy.interceptor.DynamicFilterInterceptor;
 import org.candlepin.resteasy.interceptor.LinkHeaderPostInterceptor;
 import org.candlepin.resteasy.interceptor.PageRequestInterceptor;
 import org.candlepin.resteasy.interceptor.PinsetterAsyncInterceptor;
@@ -230,6 +231,7 @@ public class CandlepinModule extends AbstractModule {
         bind(PinsetterAsyncInterceptor.class);
         bind(VersionPostInterceptor.class);
         bind(LinkHeaderPostInterceptor.class);
+        bind(DynamicFilterInterceptor.class);
     }
 
     private void configurePinsetter() {
