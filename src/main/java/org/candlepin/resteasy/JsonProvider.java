@@ -18,7 +18,9 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
 import javax.ws.rs.ext.Provider;
 
+import org.apache.log4j.Logger;
 import org.candlepin.config.Config;
+import org.candlepin.jackson.DynamicFilterProvider;
 import org.candlepin.jackson.DynamicPropertyFilter;
 import org.candlepin.jackson.HateoasBeanPropertyFilter;
 import org.codehaus.jackson.jaxrs.Annotations;
@@ -45,6 +47,9 @@ import com.google.inject.Inject;
 @Consumes({"application/*+json", "text/json"})
 public class JsonProvider extends JacksonJsonProvider {
 
+    private static Logger log = Logger.getLogger(JsonProvider.class);
+    private DynamicFilterProvider filterProvider;
+
     public static void register(boolean indentJson) {
         ResteasyProviderFactory rpf = ResteasyProviderFactory.getInstance();
         JsonProvider jsonprovider = new JsonProvider(indentJson);
@@ -54,8 +59,9 @@ public class JsonProvider extends JacksonJsonProvider {
     }
 
     @Inject
-    public JsonProvider(Config config) {
+    public JsonProvider(Config config, DynamicFilterProvider filterProvider) {
         this(config.indentJson());
+        this.filterProvider = filterProvider;
     }
 
     public JsonProvider(boolean indentJson) {
@@ -65,6 +71,7 @@ public class JsonProvider extends JacksonJsonProvider {
         ObjectMapper mapper = _mapperConfig.getDefaultMapper();
         configureHateoasObjectMapper(mapper, indentJson);
         setMapper(mapper);
+        log.info("#### Set JSON mapper");
     }
 
     private void configureHateoasObjectMapper(ObjectMapper mapper, boolean indentJson) {
@@ -74,21 +81,21 @@ public class JsonProvider extends JacksonJsonProvider {
             mapper.configure(SerializationConfig.Feature.INDENT_OUTPUT, true);
         }
 
-        SimpleFilterProvider filterProvider = new SimpleFilterProvider();
-        filterProvider = filterProvider.addFilter("ConsumerFilter",
-            new HateoasBeanPropertyFilter());
-        filterProvider = filterProvider.addFilter("EntitlementFilter",
-            new HateoasBeanPropertyFilter());
-        filterProvider = filterProvider.addFilter("OwnerFilter",
-            new HateoasBeanPropertyFilter());
-        filterProvider = filterProvider.addFilter("ConsumerFilter",
-            new DynamicPropertyFilter());
-        filterProvider = filterProvider.addFilter("EntitlementFilter",
-            new DynamicPropertyFilter());
-        filterProvider = filterProvider.addFilter("OwnerFilter",
-            new DynamicPropertyFilter());
-        filterProvider = filterProvider.addFilter("DynamicFilter",
-            new DynamicPropertyFilter());
+//        SimpleFilterProvider filterProvider = new SimpleFilterProvider();
+//        filterProvider = filterProvider.addFilter("ConsumerFilter",
+//            new HateoasBeanPropertyFilter());
+//        filterProvider = filterProvider.addFilter("EntitlementFilter",
+//            new HateoasBeanPropertyFilter());
+//        filterProvider = filterProvider.addFilter("OwnerFilter",
+//            new HateoasBeanPropertyFilter());
+//        filterProvider = filterProvider.addFilter("ConsumerFilter",
+//            dynamic);
+//        filterProvider = filterProvider.addFilter("EntitlementFilter",
+//            new DynamicPropertyFilter());
+//        filterProvider = filterProvider.addFilter("OwnerFilter",
+//            new DynamicPropertyFilter());
+//        filterProvider = filterProvider.addFilter("DynamicFilter",
+//            new DynamicPropertyFilter());
         filterProvider.setFailOnUnknownId(false);
         mapper.setFilters(filterProvider);
 

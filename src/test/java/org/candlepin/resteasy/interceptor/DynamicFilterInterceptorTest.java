@@ -21,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import java.io.Serializable;
 import java.util.Locale;
 
+import org.candlepin.jackson.DynamicFilterProvider;
 import org.candlepin.jackson.DynamicFilterable;
 import org.candlepin.model.AbstractHibernateObject;
 import org.candlepin.pinsetter.core.PinsetterKernel;
@@ -54,7 +55,7 @@ public class DynamicFilterInterceptorTest {
         Locale locale = new Locale("en_US");
         i18n = I18nFactory.getI18n(getClass(), "org.candlepin.i18n.Messages", locale,
             I18nFactory.FALLBACK);
-        this.interceptor = new DynamicFilterInterceptor(i18n);
+        this.interceptor = new DynamicFilterInterceptor(i18n, new DynamicFilterProvider());
         rmethod = mock(ResourceMethod.class);
     }
 

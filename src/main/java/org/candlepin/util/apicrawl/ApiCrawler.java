@@ -32,11 +32,11 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 
 import org.codehaus.jackson.map.JsonMappingException;
-
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.schema.JsonSchema;
 import org.candlepin.auth.interceptor.Verify;
 import org.candlepin.config.Config;
+import org.candlepin.jackson.DynamicFilterProvider;
 import org.candlepin.resource.RootResource;
 import org.candlepin.resteasy.JsonProvider;
 
@@ -45,7 +45,8 @@ import org.candlepin.resteasy.JsonProvider;
  * namespace looking for exposed API calls.
  */
 public class ApiCrawler {
-    private ObjectMapper mapper = new JsonProvider(new Config())
+    private ObjectMapper mapper = new JsonProvider(new Config(),
+        new DynamicFilterProvider())
             .locateMapper(Object.class, MediaType.APPLICATION_JSON_TYPE);
     private List<Class> httpClasses;
     private static final String API_FILE = "target/candlepin_api.json";
@@ -81,7 +82,7 @@ public class ApiCrawler {
 
         // we need a different mapper to write the output, one without our
         // schema hack module installed.
-        ObjectMapper mapper = new JsonProvider(new Config())
+        ObjectMapper mapper = new JsonProvider(new Config(), new DynamicFilterProvider())
             .locateMapper(Object.class, MediaType.APPLICATION_JSON_TYPE);
         FileWriter jsonFile = new FileWriter(API_FILE);
         try {

@@ -40,6 +40,7 @@ import org.candlepin.exceptions.mappers.UnauthorizedExceptionMapper;
 import org.candlepin.exceptions.mappers.UnsupportedMediaTypeExceptionMapper;
 import org.candlepin.exceptions.mappers.WebApplicationExceptionMapper;
 import org.candlepin.exceptions.mappers.WriterExceptionMapper;
+import org.candlepin.jackson.DynamicFilterProvider;
 import org.candlepin.model.UeberCertificateGenerator;
 import org.candlepin.pinsetter.core.GuiceJobFactory;
 import org.candlepin.pinsetter.core.PinsetterJobListener;
@@ -194,6 +195,8 @@ public class CandlepinModule extends AbstractModule {
         bind(DistributorVersionResource.class);
         bind(DeletedConsumerResource.class);
         bind(CdnResource.class);
+
+        bind(DynamicFilterProvider.class);
 
 
         bind(I18n.class).toProvider(I18nProvider.class);

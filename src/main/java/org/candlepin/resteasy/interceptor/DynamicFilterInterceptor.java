@@ -26,6 +26,7 @@ import javax.ws.rs.ext.Provider;
 
 import org.apache.log4j.Logger;
 import org.candlepin.exceptions.BadRequestException;
+import org.candlepin.jackson.DynamicFilterProvider;
 import org.candlepin.jackson.DynamicFilterable;
 import org.jboss.resteasy.annotations.interception.ServerInterceptor;
 import org.jboss.resteasy.core.ResourceMethod;
@@ -58,11 +59,14 @@ public class DynamicFilterInterceptor implements PreProcessInterceptor,
     private static ThreadLocal<Set<String>> attributes = new ThreadLocal<Set<String>>();
     private static ThreadLocal<Boolean> blacklist = new ThreadLocal<Boolean>();
 
+    private DynamicFilterProvider filterProvider;
+
     private I18n i18n;
 
     @Inject
-    public DynamicFilterInterceptor(I18n i18n) {
+    public DynamicFilterInterceptor(I18n i18n, DynamicFilterProvider filterProvider) {
         this.i18n = i18n;
+        this.filterProvider = filterProvider;
     }
 
     @Override
@@ -72,9 +76,12 @@ public class DynamicFilterInterceptor implements PreProcessInterceptor,
         Map<String, List<String>> queryParams = request.getUri().getQueryParameters();
         boolean containsExcl = queryParams.containsKey("exclude");
         boolean containsIncl = queryParams.containsKey("include");
+
         // We wait the list to be a blacklist by default when neither include
         // nor exclude is provided, so we don't accidentally filter anything
         blacklist.set(!containsIncl);
+        filterProvider.setBlacklist(!containsIncl);
+
         // Cannot do both types of filtering together
         if (containsExcl && containsIncl) {
             throw new BadRequestException(
@@ -83,13 +90,16 @@ public class DynamicFilterInterceptor implements PreProcessInterceptor,
         if (containsExcl) {
             for (String toExclude : queryParams.get("exclude")) {
                 attributes.get().add(toExclude);
+                filterProvider.addAttribute(toExclude);
             }
         }
         else if (containsIncl) {
             for (String toInclude : queryParams.get("include")) {
                 attributes.get().add(toInclude);
+                filterProvider.addAttribute(toInclude);
             }
         }
+        log.info("#### Dynamic Filter Interceptor preprocess ran.");
         return null;
     }
 

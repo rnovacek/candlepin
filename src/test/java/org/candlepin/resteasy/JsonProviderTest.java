@@ -15,13 +15,17 @@
 package org.candlepin.resteasy;
 
 import javax.ws.rs.core.MediaType;
+
 import junit.framework.Assert;
+
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.SerializationConfig;
 import org.codehaus.jackson.map.SerializationConfig.Feature;
+
 import static org.mockito.Mockito.when;
 
 import org.candlepin.config.Config;
+import org.candlepin.jackson.DynamicFilterProvider;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -36,7 +40,7 @@ public class JsonProviderTest {
     public void noIndentation() {
         when(config.indentJson()).thenReturn(false);
 
-        JsonProvider provider = new JsonProvider(config);
+        JsonProvider provider = new JsonProvider(config, new DynamicFilterProvider());
         boolean indentEnabled = isEnabled(provider,
                 SerializationConfig.Feature.INDENT_OUTPUT);
 
@@ -47,7 +51,7 @@ public class JsonProviderTest {
     public void indentation() {
         when(config.indentJson()).thenReturn(true);
 
-        JsonProvider provider = new JsonProvider(config);
+        JsonProvider provider = new JsonProvider(config, new DynamicFilterProvider());
         boolean indentEnabled = isEnabled(provider,
                 SerializationConfig.Feature.INDENT_OUTPUT);
 
@@ -57,7 +61,7 @@ public class JsonProviderTest {
     // This is kind of silly - basically just testing an initial setting...
     @Test
     public void dateFormat() {
-        JsonProvider provider = new JsonProvider(config);
+        JsonProvider provider = new JsonProvider(config, new DynamicFilterProvider());
 
         boolean datesAsTimestamps = isEnabled(provider,
                 SerializationConfig.Feature.WRITE_DATES_AS_TIMESTAMPS);

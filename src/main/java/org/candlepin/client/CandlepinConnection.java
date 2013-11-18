@@ -15,6 +15,7 @@
 package org.candlepin.client;
 
 import org.candlepin.config.Config;
+import org.candlepin.jackson.DynamicFilterProvider;
 import org.candlepin.resteasy.JsonProvider;
 
 import com.google.inject.Inject;
@@ -38,7 +39,7 @@ public class CandlepinConnection {
     @Inject
     public CandlepinConnection(Config config) {
         ResteasyProviderFactory rpf = ResteasyProviderFactory.getInstance();
-        JsonProvider jsonprovider = new JsonProvider(config);
+        JsonProvider jsonprovider = new JsonProvider(config, new DynamicFilterProvider());
         rpf.addMessageBodyReader(jsonprovider);
         rpf.addMessageBodyWriter(jsonprovider);
         RegisterBuiltin.register(rpf);
