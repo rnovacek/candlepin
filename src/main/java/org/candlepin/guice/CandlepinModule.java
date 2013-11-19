@@ -52,8 +52,8 @@ import org.candlepin.pinsetter.tasks.RefreshPoolsJob;
 import org.candlepin.pinsetter.tasks.UnpauseJob;
 import org.candlepin.pki.PKIReader;
 import org.candlepin.pki.PKIUtility;
-import org.candlepin.pki.impl.BouncyCastlePKIReader;
 import org.candlepin.pki.impl.BouncyCastlePKIUtility;
+import org.candlepin.pki.impl.DefaultPKIReader;
 import org.candlepin.policy.criteria.CriteriaRules;
 import org.candlepin.policy.js.JsRunner;
 import org.candlepin.policy.js.JsRunnerProvider;
@@ -136,7 +136,8 @@ public class CandlepinModule extends AbstractModule {
         bind(JPAInitializer.class).asEagerSingleton();
 
         bind(PKIUtility.class).to(BouncyCastlePKIUtility.class).asEagerSingleton();
-        bind(PKIReader.class).to(BouncyCastlePKIReader.class).asEagerSingleton();
+        //bind(PKIReader.class).to(BouncyCastlePKIReader.class).asEagerSingleton();
+        bind(PKIReader.class).to(DefaultPKIReader.class).asEagerSingleton();
         bind(X509ExtensionUtil.class);
         bind(CrlGenerator.class);
         bind(ConsumerResource.class);
