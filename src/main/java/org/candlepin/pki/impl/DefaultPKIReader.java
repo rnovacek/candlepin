@@ -50,9 +50,13 @@ public class DefaultPKIReader implements PKIReader {
         DefaultPKIReader.class);
 
     private CertificateFactory certFactory;
+    // The path of the pkcs12 formatted keystore on disk
     private String caKeystore;
+    // Location for upsrteam certificates
     private String upstreamCaCertPath;
+    // Password to unlock the private key
     private String caKeyPassword;
+    // The name (alias) the key is stored under.
     private String pKeyAlias;
     private KeyStore keystore;
     private PrivateKey pKey;
