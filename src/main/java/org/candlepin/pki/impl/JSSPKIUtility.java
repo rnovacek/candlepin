@@ -20,20 +20,10 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 import org.bouncycastle.asn1.ASN1InputStream;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERUTF8String;
-import org.bouncycastle.asn1.misc.MiscObjectIdentifiers;
-import org.bouncycastle.asn1.misc.NetscapeCertType;
 import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.CRLReason;
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.X509Extensions;
-import org.bouncycastle.openssl.PEMWriter;
 import org.bouncycastle.x509.X509V2CRLGenerator;
-import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.candlepin.pki.PKIReader;
 import org.candlepin.pki.PKIUtility;
@@ -41,7 +31,6 @@ import org.candlepin.pki.X509ByteExtensionWrapper;
 import org.candlepin.pki.X509CRLEntryWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
 import org.candlepin.util.Util;
-import org.mozilla.jss.CertDatabaseException;
 import org.mozilla.jss.CryptoManager.NotInitializedException;
 import org.mozilla.jss.asn1.ASN1Util;
 import org.mozilla.jss.asn1.ASN1Value;
@@ -65,7 +54,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.CharConversionException;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -86,7 +74,6 @@ import java.util.Set;
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
-import javax.security.auth.x500.X500Principal;
 
 /**
  * The default {@link PKIUtility} for Candlepin.
@@ -146,13 +133,13 @@ public class JSSPKIUtility extends PKIUtility {
         try {
             X509Certificate caCert = reader.getCACert();
             SignatureAlgorithm sigAlg = null;
-            if (SIGNATURE_ALGO == "SHA1WITHRSA")
-            {
+            if (SIGNATURE_ALGO == "SHA1WITHRSA") {
                 sigAlg = SignatureAlgorithm.RSASignatureWithSHA1Digest;
             }
             Util.assertNotNull(sigAlg, "Signature Algorithm has changed");
 
-            SubjectPublicKeyInfo subjectInfo = new SubjectPublicKeyInfo(clientKeyPair.getPublic());
+            SubjectPublicKeyInfo subjectInfo = new SubjectPublicKeyInfo(
+                clientKeyPair.getPublic());
 
             Name issuer = this.parseDN(caCert.getIssuerX500Principal().getName());
 
@@ -168,12 +155,12 @@ public class JSSPKIUtility extends PKIUtility {
 
             // set key usage - required for proper x509 function
             // Key Usage is digitalSignature | keyEncipherment | dataEncipherment
-            BIT_STRING keyUsage = new BIT_STRING(new byte[]{(byte)(128 | 32 | 16)}, 0);
+            BIT_STRING keyUsage = new BIT_STRING(new byte[]{(byte) (128 | 32 | 16)}, 0);
             this.addExtension(cInfo, KEY_USAGE_OID, false, keyUsage);
 
             // add SSL extensions - required for proper x509 function
             // Value is sslClient | smime
-            BIT_STRING certType = new BIT_STRING(new byte[]{(byte)(128 | 32)}, 0);
+            BIT_STRING certType = new BIT_STRING(new byte[]{(byte) (128 | 32)}, 0);
             this.addExtension(cInfo, NETSCAPE_CERT_TYPE_OID, false, certType);
 
             // The subject key identifier is a sha1 hash of hte public key of the subject
@@ -190,7 +177,7 @@ public class JSSPKIUtility extends PKIUtility {
             subkjectKeyString = new OCTET_STRING(keyData);
 
 
-            SEQUENCE authKeySeq = new SEQUENCE() ;
+            SEQUENCE authKeySeq = new SEQUENCE();
             authKeySeq.addElement(new Tag(0), subkjectKeyString);
             //authKeySeq.addElement(new Tag(1), issuer);
             authKeySeq.addElement(new Tag(2), new INTEGER(caCert.getSerialNumber()));
@@ -213,7 +200,8 @@ public class JSSPKIUtility extends PKIUtility {
             // Add an alternate name if provided
             if (alternateName != null) {
                 // Compared to bouncecastle, missing DirName:/
-                this.addExtension(cInfo, SUBJECT_ALT_NAME_OID, false, "CN="+alternateName);
+                this.addExtension(cInfo, SUBJECT_ALT_NAME_OID, false, "CN=" +
+                    alternateName);
             }
 
 
@@ -246,7 +234,8 @@ public class JSSPKIUtility extends PKIUtility {
         }
     }
 
-    protected void addExtension(CertificateInfo cInfo, String oid, boolean isCritical, String value)
+    protected void addExtension(CertificateInfo cInfo, String oid,
+        boolean isCritical, String value)
         throws  CertificateException {
         value = value == null ? "" :  value;
         Extension ext = new Extension(
@@ -256,7 +245,8 @@ public class JSSPKIUtility extends PKIUtility {
         cInfo.addExtension(ext);
     }
 
-    protected void addExtension(CertificateInfo cInfo, String oid, boolean isCritical, ASN1Value value)
+    protected void addExtension(CertificateInfo cInfo, String oid,
+        boolean isCritical, ASN1Value value)
         throws  CertificateException {
         Extension ext = new Extension(
             new OBJECT_IDENTIFIER(oid),
@@ -333,10 +323,10 @@ public class JSSPKIUtility extends PKIUtility {
         String header = "-----BEGIN " + type + "-----\r\n";
         String footer = "-----END " + type + "-----";
         byteArrayOutputStream.write(header.getBytes());
-        byteArrayOutputStream.write((byte[])b64.encode(data));
+        byteArrayOutputStream.write(b64.encode(data));
         byteArrayOutputStream.write(footer.getBytes());
         byteArrayOutputStream.close();
-        log.error( new String(byteArrayOutputStream.toByteArray()));
+        log.error(new String(byteArrayOutputStream.toByteArray()));
         return byteArrayOutputStream.toByteArray();
     }
 
@@ -401,24 +391,29 @@ public class JSSPKIUtility extends PKIUtility {
     }
 
     public Name parseDN(String nameString) {
-        Name name = new Name() ;
+        Name name = new Name();
         try {
-            LdapName ldapName = new LdapName(nameString) ;
+            LdapName ldapName = new LdapName(nameString);
             for (Rdn rdn : ldapName.getRdns()) {
-                String type = rdn.getType().toUpperCase() ;
+                String type = rdn.getType().toUpperCase();
                 log.error(type);
                 if (type.equals("CN")) {
-                    name.addCommonName((String)rdn.getValue());
-                } else if (type.equals("OU")) {
-                    name.addOrganizationalUnitName((String)rdn.getValue());
-                } else if (type.equals("O")) {
-                    name.addOrganizationName((String)rdn.getValue());
-                } else if (type.equals("C")) {
-                    name.addCountryName((String)rdn.getValue());
-                } else if (type.equals("L")) {
-                    name.addLocalityName((String)rdn.getValue());
-                } else if (type.equals("S")) {
-                    name.addStateOrProvinceName((String)rdn.getValue());
+                    name.addCommonName((String) rdn.getValue());
+                }
+                else if (type.equals("OU")) {
+                    name.addOrganizationalUnitName((String) rdn.getValue());
+                }
+                else if (type.equals("O")) {
+                    name.addOrganizationName((String) rdn.getValue());
+                }
+                else if (type.equals("C")) {
+                    name.addCountryName((String) rdn.getValue());
+                }
+                else if (type.equals("L")) {
+                    name.addLocalityName((String) rdn.getValue());
+                }
+                else if (type.equals("S")) {
+                    name.addStateOrProvinceName((String) rdn.getValue());
                 }
             }
         }

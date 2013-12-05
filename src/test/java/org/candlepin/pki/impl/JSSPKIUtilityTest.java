@@ -16,12 +16,8 @@ package org.candlepin.pki.impl;
 
 import static org.junit.Assert.*;
 
-import java.security.cert.CertificateException;
-import java.util.HashMap;
 import org.mozilla.jss.pkix.primitive.Name;
 
-import org.candlepin.config.Config;
-import org.candlepin.config.ConfigProperties;
 import org.junit.Test;
 
 /**
@@ -33,7 +29,8 @@ public class JSSPKIUtilityTest {
     public void readkey() throws Exception {
         JSSPKIUtility util = new JSSPKIUtility(null, null);
         Name result = util.parseDN("CN=JarJar, OU=Binks");
-        assertEquals("Name parsing is not correct", "OU=Binks, CN=JarJar", result.getRFC1485());
+        assertEquals("Name parsing is not correct", "OU=Binks, CN=JarJar",
+            result.getRFC1485());
     }
 
 }
