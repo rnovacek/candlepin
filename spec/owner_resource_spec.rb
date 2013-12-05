@@ -32,7 +32,7 @@ describe 'Owner Resource' do
     # Should be rejected listing another owner's service levels:
     lambda do
       consumer_client.list_owner_service_levels(owner2['key'])
-    end.should raise_exception(RestClient::Forbidden)
+    end.should raise_exception(RestClient::ResourceNotFound)
   end
 
   it 'should allow a client to create an owner with parent' do
@@ -115,7 +115,7 @@ describe 'Owner Resource' do
     #and this will fail
     lambda do
       ro_owner_client.register('systemFoo')
-    end.should raise_exception(RestClient::Forbidden)
+    end.should raise_exception(RestClient::ResourceNotFound)
   end
 
   it "does not let the owner key get updated" do
@@ -312,4 +312,55 @@ describe 'Owner Resource' do
     c = @cp.get_consumer(system.uuid)
     c['entitlementCount'].should == 1
   end
+
+  it 'should allow admin users to set org debug mode' do
+    owner = create_owner(random_string("debug_owner"))
+    @cp.set_owner_log_level(owner['key'])
+
+    owner = @cp.get_owner(owner['key'])
+    owner['logLevel'].should == "DEBUG"
+
+    @cp.delete_owner_log_level(owner['key'])
+    owner = @cp.get_owner(owner['key'])
+    owner['logLevel'].should be_nil
+  end
+
+  it 'should not allow setting bad log levels' do
+    owner = create_owner(random_string("debug_owner"))
+    lambda do
+      @cp.set_owner_log_level(owner['key'], "THISLEVELISBAD")
+    end.should raise_exception(RestClient::BadRequest)
+  end
+  
+  it 'should allow consumer lookup by consumer types' do
+    owner = create_owner random_string("type-owner")
+    owner_admin = user_client(owner, random_string('type-owner-user'))
+    
+    system1 = owner_admin.register("system1-consumer")
+    system2 = owner_admin.register("system2-consumer")
+    hypervisor = owner_admin.register("hypervisor-consumer", type=:hypervisor)
+    distributor = owner_admin.register("distributor-consumer", type=:candlepin)
+   
+    systems = owner_admin.list_owner_consumers(owner['key'], types=["system"])
+    systems.length.should == 2
+    systems.each { |consumer| consumer['type']['label'].should == "system" }
+    
+    hypervisors = owner_admin.list_owner_consumers(owner['key'], types=["hypervisor"])
+    hypervisors.length.should == 1
+    hypervisors.each { |consumer| consumer['type']['label'].should == "hypervisor" }
+    
+    distributors = owner_admin.list_owner_consumers(owner['key'], types=["candlepin"])
+    distributors.length.should == 1
+    distributors.each { |consumer| consumer['type']['label'].should == "candlepin" }
+    
+    # Now that we have our counts we can do a lookup for multiple types
+    consumers = owner_admin.list_owner_consumers(owner['key'], types=["hypervisor", "candlepin"])
+    consumers.length.should == 2
+    found = []
+    consumers.each { |consumer| found << consumer['type']['label']}
+    found.length.should == 2
+    found.delete("hypervisor").should_not be_nil
+    found.delete("candlepin").should_not be_nil
+  end
+  
 end

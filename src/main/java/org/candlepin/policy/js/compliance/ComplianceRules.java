@@ -24,13 +24,14 @@ import org.candlepin.policy.js.RulesObjectMapper;
 
 import com.google.inject.Inject;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Date;
 import java.util.List;
 
 /**
- * Compliance
+ * ComplianceRules
  *
  * A class used to check consumer compliance status.
  */
@@ -39,7 +40,7 @@ public class ComplianceRules {
     private EntitlementCurator entCurator;
     private JsRunner jsRules;
     private RulesObjectMapper mapper;
-    private static Logger log = Logger.getLogger(ComplianceRules.class);
+    private static Logger log = LoggerFactory.getLogger(ComplianceRules.class);
     private StatusReasonMessageGenerator generator;
 
     @Inject
@@ -62,7 +63,13 @@ public class ComplianceRules {
      */
     public ComplianceStatus getStatus(Consumer c, Date date) {
 
-        List<Entitlement> ents = entCurator.listByConsumer(c);
+        if (c.getType().isManifest()) {
+            // We don't care about status for manifest consumer and they can have a LOT
+            // of entitlements. Skip it.
+            return new ComplianceStatus(date);
+        }
+
+        List<Entitlement> ents = entCurator.listByConsumerAndDate(c, date);
 
         JsonJsContext args = new JsonJsContext(mapper);
         args.put("consumer", c);
@@ -94,10 +101,13 @@ public class ComplianceRules {
         return jsRules.runJsFunction(Boolean.class, "is_stack_compliant", args);
     }
 
-    public boolean isEntitlementCompliant(Consumer consumer, Entitlement ent) {
+    public boolean isEntitlementCompliant(Consumer consumer, Entitlement ent, Date onDate) {
+        List<Entitlement> ents = entCurator.listByConsumerAndDate(consumer, onDate);
+
         JsonJsContext args = new JsonJsContext(mapper);
         args.put("consumer", consumer);
         args.put("entitlement", ent);
+        args.put("entitlements", ents);
         args.put("log", log, false);
         return jsRules.runJsFunction(Boolean.class, "is_ent_compliant", args);
     }

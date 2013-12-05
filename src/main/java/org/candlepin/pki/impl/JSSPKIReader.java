@@ -27,7 +27,9 @@ import java.security.cert.X509Certificate;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.candlepin.config.Config;
 import org.candlepin.config.ConfigProperties;
 import org.candlepin.pki.PKIReader;
@@ -46,7 +48,7 @@ import com.google.inject.Inject;
  */
 public class JSSPKIReader implements PKIReader {
 
-    private static Logger log = Logger.getLogger(JSSPKIReader.class);
+    private static Logger log = LoggerFactory.getLogger(JSSPKIReader.class);
 
     private CertificateFactory certFactory;
     // Location for upstream certificates

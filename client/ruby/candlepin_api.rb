@@ -131,6 +131,36 @@ class Candlepin
     put("#{path}/#{uuid}", consumer)
   end
 
+  def update_guestids(guestIds)
+    path = "/consumers/#{@uuid}/guestids"
+    put(path, guestIds)
+  end
+
+  def update_guestid(guest)
+    path = "/consumers/#{@uuid}/guestids/#{guest[:guestId]}"
+    put(path, guest)
+  end
+
+  def delete_guestid(guestuuid, unregister = false)
+    path = "/consumers/#{@uuid}/guestids/#{guestuuid}"
+    if unregister
+        path << "?unregister=true"
+    end
+    delete(path)
+  end
+
+  def get_guestids()
+    path = "/consumers/#{@uuid}/guestids"
+    results = get(path)
+    return results
+  end
+
+  def get_guestid(guestuuid)
+    path = "/consumers/#{@uuid}/guestids/#{guestuuid}"
+    result = get(path)
+    return result
+  end
+
   def update_entitlement(params)
     entitlement = {
         :id => params[:id]
@@ -190,6 +220,16 @@ class Candlepin
 
   def update_owner(owner_key, owner)
     put("/owners/#{owner_key}", owner)
+  end
+
+  def set_owner_log_level(owner_key, log_level=nil)
+    uri = "/owners/#{owner_key}/log"
+    uri << "?level=#{log_level}" if log_level
+    put uri
+  end
+
+  def delete_owner_log_level(owner_key)
+    delete "/owners/#{owner_key}/log"
   end
 
   def generate_ueber_cert(owner_key)
@@ -608,6 +648,13 @@ class Candlepin
     return results
   end
 
+  def list_pool_entitlements(pool_id, params={})
+    path = "/pools/#{pool_id}/entitlements"
+    results = get(path)
+    return results
+  end
+
+
   def list_rules()
     get_text("/rules")
   end
@@ -641,8 +688,11 @@ class Candlepin
     get(query)
   end
 
-  def list_owner_consumers(owner_key)
+  def list_owner_consumers(owner_key, consumer_types=[])
     query = "/owners/#{owner_key}/consumers"
+    if !consumer_types.empty?
+        query += "?type=" + consumer_types.join("&type=")
+    end
     get(query)
   end
 

@@ -14,6 +14,22 @@
  */
 package org.candlepin.resource;
 
+import org.candlepin.auth.interceptor.Verify;
+import org.candlepin.controller.PoolManager;
+import org.candlepin.exceptions.BadRequestException;
+import org.candlepin.model.ActivationKey;
+import org.candlepin.model.ActivationKeyCurator;
+import org.candlepin.model.ActivationKeyPool;
+import org.candlepin.model.Pool;
+import org.candlepin.model.ProductPoolAttribute;
+
+import com.google.inject.Inject;
+
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xnap.commons.i18n.I18n;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,27 +43,12 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
-import org.candlepin.auth.Access;
-import org.candlepin.auth.interceptor.Verify;
-import org.candlepin.controller.PoolManager;
-import org.candlepin.exceptions.BadRequestException;
-import org.candlepin.model.ActivationKey;
-import org.candlepin.model.ActivationKeyCurator;
-import org.candlepin.model.ActivationKeyPool;
-import org.candlepin.model.Pool;
-import org.candlepin.model.ProductPoolAttribute;
-import org.xnap.commons.i18n.I18n;
-
-import com.google.inject.Inject;
-
 /**
  * SubscriptionTokenResource
  */
 @Path("/activation_keys")
 public class ActivationKeyResource {
-    private static Logger log = Logger.getLogger(ActivationKeyResource.class);
+    private static Logger log = LoggerFactory.getLogger(ActivationKeyResource.class);
     private ActivationKeyCurator activationKeyCurator;
     private PoolManager poolManager;
     private I18n i18n;
@@ -122,8 +123,7 @@ public class ActivationKeyResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Pool addPoolToKey(
         @PathParam("activation_key_id") @Verify(ActivationKey.class) String activationKeyId,
-        @PathParam("pool_id")
-        @Verify(value = Pool.class, require = Access.READ_POOLS) String poolId,
+        @PathParam("pool_id") @Verify(Pool.class) String poolId,
         @QueryParam("quantity") Long quantity) {
 
         if (quantity != null && quantity < 1) {
@@ -178,7 +178,7 @@ public class ActivationKeyResource {
     public Pool removePoolFromKey(
         @PathParam("activation_key_id") @Verify(ActivationKey.class) String activationKeyId,
         @PathParam("pool_id")
-        @Verify(value = Pool.class, require = Access.READ_POOLS) String poolId) {
+        @Verify(Pool.class) String poolId) {
         ActivationKey key = findKey(activationKeyId);
         Pool pool = findPool(poolId);
         key.removePool(pool);

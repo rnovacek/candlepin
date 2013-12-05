@@ -17,7 +17,6 @@ package org.candlepin.guice;
 import org.candlepin.audit.EventSink;
 import org.candlepin.audit.EventSinkImpl;
 import org.candlepin.auth.Principal;
-import org.candlepin.auth.interceptor.SecurityInterceptor;
 import org.candlepin.config.Config;
 import org.candlepin.controller.CandlepinPoolManager;
 import org.candlepin.controller.CrlGenerator;
@@ -47,8 +46,8 @@ import org.candlepin.pinsetter.core.PinsetterKernel;
 import org.candlepin.pinsetter.tasks.CertificateRevocationListTask;
 import org.candlepin.pinsetter.tasks.EntitlerJob;
 import org.candlepin.pinsetter.tasks.JobCleaner;
-import org.candlepin.pinsetter.tasks.SweepBarJob;
 import org.candlepin.pinsetter.tasks.RefreshPoolsJob;
+import org.candlepin.pinsetter.tasks.SweepBarJob;
 import org.candlepin.pinsetter.tasks.UnpauseJob;
 import org.candlepin.pki.PKIReader;
 import org.candlepin.pki.PKIUtility;
@@ -74,6 +73,7 @@ import org.candlepin.resource.DistributorVersionResource;
 import org.candlepin.resource.EntitlementResource;
 import org.candlepin.resource.EnvironmentResource;
 import org.candlepin.resource.EventResource;
+import org.candlepin.resource.GuestIdResource;
 import org.candlepin.resource.HypervisorResource;
 import org.candlepin.resource.JobResource;
 import org.candlepin.resource.MigrationResource;
@@ -89,6 +89,7 @@ import org.candlepin.resource.SubscriptionResource;
 import org.candlepin.resource.UserResource;
 import org.candlepin.resteasy.JsonProvider;
 import org.candlepin.resteasy.interceptor.AuthInterceptor;
+import org.candlepin.resteasy.interceptor.DynamicFilterInterceptor;
 import org.candlepin.resteasy.interceptor.LinkHeaderPostInterceptor;
 import org.candlepin.resteasy.interceptor.PageRequestInterceptor;
 import org.candlepin.resteasy.interceptor.PinsetterAsyncInterceptor;
@@ -105,17 +106,16 @@ import org.candlepin.util.DateSource;
 import org.candlepin.util.DateSourceImpl;
 import org.candlepin.util.ExpiryDateFunction;
 import org.candlepin.util.X509ExtensionUtil;
-import org.quartz.JobListener;
-import org.quartz.spi.JobFactory;
-import org.xnap.commons.i18n.I18n;
 
 import com.google.common.base.Function;
 import com.google.inject.AbstractModule;
 import com.google.inject.Singleton;
-import com.google.inject.matcher.Matcher;
-import com.google.inject.matcher.Matchers;
 import com.google.inject.name.Names;
 import com.google.inject.persist.jpa.JpaPersistModule;
+
+import org.quartz.JobListener;
+import org.quartz.spi.JobFactory;
+import org.xnap.commons.i18n.I18n;
 
 /**
  * CandlepinProductionConfiguration
@@ -195,30 +195,16 @@ public class CandlepinModule extends AbstractModule {
         bind(DistributorVersionResource.class);
         bind(DeletedConsumerResource.class);
         bind(CdnResource.class);
+        bind(GuestIdResource.class);
 
 
         bind(I18n.class).toProvider(I18nProvider.class);
-        bind(AuthInterceptor.class);
-        bind(PageRequestInterceptor.class);
-        bind(PinsetterAsyncInterceptor.class);
-        bind(VersionPostInterceptor.class);
-        bind(LinkHeaderPostInterceptor.class);
+        this.configureInterceptors();
         bind(JsonProvider.class);
         bind(EventSink.class).to(EventSinkImpl.class);
-        bind(JobFactory.class).to(GuiceJobFactory.class);
-        bind(JobListener.class).to(PinsetterJobListener.class);
-        bind(PinsetterKernel.class);
-        bind(CertificateRevocationListTask.class);
-        bind(JobCleaner.class);
-        bind(UnpauseJob.class);
-        bind(SweepBarJob.class);
+        this.configurePinsetter();
 
-        bind(Exporter.class);
-        bind(MetaExporter.class);
-        bind(ConsumerTypeExporter.class);
-        bind(ConsumerExporter.class);
-        bind(RulesExporter.class);
-        bind(EntitlementCertExporter.class);
+        this.configureExporter();
 
         // Async Jobs
         bind(RefreshPoolsJob.class);
@@ -227,17 +213,36 @@ public class CandlepinModule extends AbstractModule {
         //UeberCerts
         bind(UeberCertificateGenerator.class);
 
-        // The order in which interceptors are bound is important!
-        // We need role enforcement to be executed before access control
-        Matcher resourcePkgMatcher = Matchers.inPackage(Package.getPackage(
-            "org.candlepin.resource"));
-        SecurityInterceptor securityEnforcer = new SecurityInterceptor();
-        requestInjection(securityEnforcer);
-        bindInterceptor(resourcePkgMatcher,
-                Matchers.any(), securityEnforcer);
-
         // flexible end date for identity certificates
         bind(Function.class).annotatedWith(Names.named("endDateGenerator"))
             .to(ExpiryDateFunction.class).in(Singleton.class);
+    }
+
+    private void configureInterceptors() {
+        bind(AuthInterceptor.class);
+        bind(PageRequestInterceptor.class);
+        bind(PinsetterAsyncInterceptor.class);
+        bind(VersionPostInterceptor.class);
+        bind(LinkHeaderPostInterceptor.class);
+        bind(DynamicFilterInterceptor.class);
+    }
+
+    private void configurePinsetter() {
+        bind(JobFactory.class).to(GuiceJobFactory.class);
+        bind(JobListener.class).to(PinsetterJobListener.class);
+        bind(PinsetterKernel.class);
+        bind(CertificateRevocationListTask.class);
+        bind(JobCleaner.class);
+        bind(UnpauseJob.class);
+        bind(SweepBarJob.class);
+    }
+
+    private void configureExporter() {
+        bind(Exporter.class);
+        bind(MetaExporter.class);
+        bind(ConsumerTypeExporter.class);
+        bind(ConsumerExporter.class);
+        bind(RulesExporter.class);
+        bind(EntitlementCertExporter.class);
     }
 }

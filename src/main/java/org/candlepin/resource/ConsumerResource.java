@@ -14,38 +14,6 @@
  */
 package org.candlepin.resource;
 
-import java.io.File;
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Pattern;
-
-import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.GET;
-import javax.ws.rs.HEAD;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
 import org.candlepin.audit.Event;
 import org.candlepin.audit.EventAdapter;
 import org.candlepin.audit.EventFactory;
@@ -53,6 +21,7 @@ import org.candlepin.audit.EventSink;
 import org.candlepin.auth.Access;
 import org.candlepin.auth.NoAuthPrincipal;
 import org.candlepin.auth.Principal;
+import org.candlepin.auth.SubResource;
 import org.candlepin.auth.UserPrincipal;
 import org.candlepin.auth.interceptor.SecurityHole;
 import org.candlepin.auth.interceptor.Verify;
@@ -112,6 +81,7 @@ import org.candlepin.policy.js.consumer.ConsumerRules;
 import org.candlepin.policy.js.override.OverrideRules;
 import org.candlepin.policy.js.quantity.QuantityRules;
 import org.candlepin.policy.js.quantity.SuggestedQuantity;
+import org.candlepin.resource.util.CalculatedAttributesUtil;
 import org.candlepin.resource.util.ConsumerInstalledProductEnricher;
 import org.candlepin.resource.util.ResourceDateParser;
 import org.candlepin.service.EntitlementCertServiceAdapter;
@@ -123,14 +93,48 @@ import org.candlepin.sync.ExportCreationException;
 import org.candlepin.sync.Exporter;
 import org.candlepin.util.Util;
 import org.candlepin.version.CertVersionConflictException;
+
+import com.google.inject.Inject;
+import com.google.inject.persist.Transactional;
+
+import org.apache.commons.lang.StringUtils;
 import org.jboss.resteasy.annotations.providers.jaxb.Wrapped;
 import org.jboss.resteasy.plugins.providers.atom.Feed;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.quartz.JobDetail;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xnap.commons.i18n.I18n;
 
-import com.google.inject.Inject;
-import com.google.inject.persist.Transactional;
+import java.io.File;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
+import javax.ws.rs.GET;
+import javax.ws.rs.HEAD;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 /**
  * API Gateway for Consumers
@@ -140,7 +144,7 @@ public class ConsumerResource {
     private Pattern consumerSystemNamePattern;
     private Pattern consumerPersonNamePattern;
 
-    private static Logger log = Logger.getLogger(ConsumerResource.class);
+    private static Logger log = LoggerFactory.getLogger(ConsumerResource.class);
     private ConsumerContentOverrideCurator consumerContentOverrideCurator;
     private ConsumerCurator consumerCurator;
     private ConsumerTypeCurator consumerTypeCurator;
@@ -170,6 +174,7 @@ public class ConsumerResource {
     private Config config;
     private QuantityRules quantityRules;
     private OverrideRules overrideRules;
+    private CalculatedAttributesUtil calculatedAttributesUtil;
 
     @Inject
     public ConsumerResource(ConsumerCurator consumerCurator,
@@ -190,7 +195,7 @@ public class ConsumerResource {
         Config config, QuantityRules quantityRules,
         ConsumerContentOverrideCurator consumerContentOverrideCurator,
         ContentCurator contentCurator, OverrideRules overrideRules,
-        CdnCurator cdnCurator) {
+        CdnCurator cdnCurator, CalculatedAttributesUtil calculatedAttributesUtil) {
 
         this.consumerCurator = consumerCurator;
         this.consumerTypeCurator = consumerTypeCurator;
@@ -224,6 +229,7 @@ public class ConsumerResource {
         this.quantityRules = quantityRules;
         this.consumerContentOverrideCurator = consumerContentOverrideCurator;
         this.overrideRules = overrideRules;
+        this.calculatedAttributesUtil = calculatedAttributesUtil;
     }
 
     /**
@@ -245,10 +251,10 @@ public class ConsumerResource {
         @Context PageRequest pageRequest) {
 
         if (uuids == null || uuids.isEmpty()) {
-            ConsumerType type = null;
+            List<ConsumerType> types = new ArrayList<ConsumerType>();
 
             if (typeLabel != null) {
-                type = lookupConsumerType(typeLabel);
+                types.add(lookupConsumerType(typeLabel));
             }
 
             Owner owner = null;
@@ -265,7 +271,7 @@ public class ConsumerResource {
             // We don't look up the user and warn if it doesn't exist here to not
             // give away usernames
             Page<List<Consumer>> p = consumerCurator.listByUsernameAndType(userName,
-                type, owner, pageRequest);
+                types, owner, pageRequest);
 
             // Store the page for the LinkHeaderPostInterceptor
             ResteasyProviderFactory.pushContext(Page.class, p);
@@ -297,7 +303,7 @@ public class ConsumerResource {
         @PathParam("consumer_uuid") String uuid) {
         if (!consumerCurator.doesConsumerExist(uuid)) {
             throw new NotFoundException(i18n.tr(
-                "Consumer with id {1} could not be found.", uuid));
+                "Consumer with id {0} could not be found.", uuid));
         }
     }
 
@@ -416,7 +422,7 @@ public class ConsumerResource {
                     i18n.tr("System name cannot contain most special characters."));
             }
 
-            verifyPersonConsumer(consumer, type, owner, userName);
+            verifyPersonConsumer(consumer, type, owner, userName, principal);
         }
 
         if (type.isType(ConsumerTypeEnum.SYSTEM) &&
@@ -480,7 +486,6 @@ public class ConsumerResource {
         }
         catch (Exception e) {
             log.error("Problem creating unit:", e);
-            e.printStackTrace();
             throw new BadRequestException(i18n.tr(
                 "Problem creating unit {0}", consumer));
         }
@@ -639,7 +644,7 @@ public class ConsumerResource {
     }
 
     private void verifyPersonConsumer(Consumer consumer, ConsumerType type,
-        Owner owner, String username) {
+        Owner owner, String username, Principal principal) {
 
         User user = null;
         try {
@@ -657,7 +662,8 @@ public class ConsumerResource {
 
         // When registering person consumers we need to be sure the username
         // has some association with the owner the consumer is destined for:
-        if (!user.hasOwnerAccess(owner, Access.ALL) && !user.isSuperAdmin()) {
+        if (!principal.canAccess(owner, SubResource.NONE, Access.ALL) &&
+            !principal.hasFullAccess()) {
             throw new ForbiddenException(i18n.tr(
                 "User ''{0}'' has no roles for organization ''{1}''",
                 user.getUsername(), owner.getKey()));
@@ -704,11 +710,11 @@ public class ConsumerResource {
 
         // Check permissions for current principal on the owner:
         if ((principal instanceof UserPrincipal) &&
-            !principal.canAccess(owner, Access.ALL)) {
-
-            throw new ForbiddenException(i18n.tr(
-                "User ''{0}'' cannot access organization ''{1}''.",
-                principal.getPrincipalName(), owner.getKey()));
+            !principal.canAccess(owner, SubResource.CONSUMERS, Access.CREATE)) {
+            log.warn("User {} does not have access to create consumers in org {}",
+                principal.getPrincipalName(), owner.getKey());
+            throw new NotFoundException(i18n.tr(
+                "owner with key: {0} was not found.", owner.getKey()));
         }
 
         return owner;
@@ -795,11 +801,6 @@ public class ConsumerResource {
         }
     }
 
-    // Requires security hole since security interceptor will intercept when the method is
-    // called. This is because it is protected. This method is called from other resources,
-    // and therefore it assumes the caller is screened first.
-    // TODO Might be a better way to do this.
-    @SecurityHole(noAuth = true)
     protected boolean performConsumerUpdates(Consumer updated, Consumer toUpdate) {
         if (log.isDebugEnabled()) {
             log.debug("Updating consumer: " + toUpdate.getUuid());
@@ -1098,10 +1099,11 @@ public class ConsumerResource {
         return removedGuests;
     }
 
-    private void revokeGuestEntitlementsNotMatchingHost(Consumer host, Consumer guest) {
+    protected void revokeGuestEntitlementsNotMatchingHost(Consumer host, Consumer guest) {
         // we need to create a list of entitlements to delete before actually
         // deleting, otherwise we are tampering with the loop iterator (BZ #786730)
         Set<Entitlement> deletableGuestEntitlements = new HashSet<Entitlement>();
+        log.debug("Revoking {} entitlements not matching host: {}", guest, host);
         for (Entitlement entitlement : guest.getEntitlements()) {
             Pool pool = entitlement.getPool();
 
@@ -1352,7 +1354,8 @@ public class ConsumerResource {
     @Path("/{consumer_uuid}/entitlements")
     public Response bind(
         @PathParam("consumer_uuid") @Verify(Consumer.class) String consumerUuid,
-        @QueryParam("pool") @Verify(value = Pool.class, nullable = true)
+        @QueryParam("pool") @Verify(value = Pool.class, nullable = true,
+            subResource = SubResource.ENTITLEMENTS)
                 String poolIdString,
         @QueryParam("product") String[] productIds,
         @QueryParam("quantity") Integer quantity,
@@ -1566,6 +1569,9 @@ public class ConsumerResource {
         ResteasyProviderFactory.pushContext(Page.class, entitlementsPage);
 
         List<Entitlement> returnedEntitlements = entitlementsPage.getPageData();
+        for (Entitlement ent : returnedEntitlements) {
+            addCalculatedAttributes(ent);
+        }
         poolManager.regenerateDirtyEntitlements(returnedEntitlements);
 
         return returnedEntitlements;
@@ -1632,7 +1638,8 @@ public class ConsumerResource {
     @Path("/{consumer_uuid}/entitlements/{dbid}")
     public void unbind(
         @PathParam("consumer_uuid") @Verify(Consumer.class) String consumerUuid,
-        @PathParam("dbid") String dbid, @Context Principal principal) {
+        @PathParam("dbid") @Verify(Entitlement.class) String dbid,
+        @Context Principal principal) {
 
         verifyAndLookupConsumer(consumerUuid);
 
@@ -1849,9 +1856,7 @@ public class ConsumerResource {
                 "Problem regenerating ID cert for unit {0}", c));
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Generated identity cert: " + idCert.getSerial().getId());
-        }
+        log.debug("Generated identity cert: {}", idCert.getSerial());
 
         return idCert;
     }
@@ -2013,7 +2018,7 @@ public class ConsumerResource {
         @PathParam("consumer_uuid") @Verify(Consumer.class) String consumerUuid,
         List<ConsumerContentOverride> entries) {
         Consumer consumer = verifyAndLookupConsumer(consumerUuid);
-        List<String> errors = new ArrayList<String>();
+        Set<String> invalidOverrides = new HashSet<String>();
         for (ConsumerContentOverride entry : entries) {
             if (overrideRules.canOverrideForConsumer(consumer, entry.getName())) {
                 ConsumerContentOverride cco = consumerContentOverrideCurator.retrieve(
@@ -2029,13 +2034,13 @@ public class ConsumerResource {
                 }
             }
             else {
-                errors.add(i18n.tr(
-                    "The value for name ''{0}'' is not allowed to be overridden.",
-                    entry.getName()));
+                invalidOverrides.add(entry.getName());
             }
         }
-        if (errors.size() > 0) {
-            throw new BadRequestException(errors.toString());
+        if (!invalidOverrides.isEmpty()) {
+            String error = i18n.tr("Not allowed to override values for: {0}",
+                StringUtils.join(invalidOverrides, ", "));
+            throw new BadRequestException(error);
         }
         return consumerContentOverrideCurator.getList(consumer);
     }
@@ -2113,5 +2118,12 @@ public class ConsumerResource {
         //It's possible that increment is greater than the number available
         //but whatever we do here, the bind will fail
         return quantity;
+    }
+
+    private void addCalculatedAttributes(Entitlement ent) {
+        // With no consumer/date, this will not build suggested quantity
+        Map<String, String> calculatedAttributes =
+            calculatedAttributesUtil.buildCalculatedAttributes(ent.getPool(), null, null);
+        ent.getPool().setCalculatedAttributes(calculatedAttributes);
     }
 }

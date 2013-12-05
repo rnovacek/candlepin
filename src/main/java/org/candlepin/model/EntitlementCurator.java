@@ -14,14 +14,13 @@
  */
 package org.candlepin.model;
 
-import org.candlepin.paging.PageRequest;
 import org.candlepin.paging.Page;
+import org.candlepin.paging.PageRequest;
 import org.candlepin.service.ProductServiceAdapter;
 
 import com.google.inject.Inject;
 import com.google.inject.persist.Transactional;
 
-import org.apache.log4j.Logger;
 import org.hibernate.Criteria;
 import org.hibernate.ReplicationMode;
 import org.hibernate.criterion.DetachedCriteria;
@@ -29,6 +28,8 @@ import org.hibernate.criterion.Projections;
 import org.hibernate.criterion.Property;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.criterion.Subqueries;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Date;
 import java.util.HashSet;
@@ -40,7 +41,7 @@ import java.util.Set;
  * EntitlementCurator
  */
 public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
-    private static Logger log = Logger.getLogger(EntitlementCurator.class);
+    private static Logger log = LoggerFactory.getLogger(EntitlementCurator.class);
     private ProductServiceAdapter productAdapter;
 
     /**
@@ -73,7 +74,7 @@ public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
 
     public Page<List<Entitlement>> listByConsumer(Consumer consumer,
         PageRequest pageRequest) {
-        DetachedCriteria query = DetachedCriteria.forClass(Entitlement.class)
+        Criteria query = createSecureCriteria()
             .add(Restrictions.eq("consumer", consumer));
         return listByCriteria(query, pageRequest);
     }
@@ -122,7 +123,7 @@ public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
     }
 
     public List<Entitlement> listByOwner(Owner owner) {
-        DetachedCriteria query = DetachedCriteria.forClass(Entitlement.class)
+        Criteria query = currentSession().createCriteria(Entitlement.class)
             .add(Restrictions.eq("owner", owner));
 
         return listByCriteria(query);
@@ -280,7 +281,7 @@ public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
     @Transactional
     public Page<List<Entitlement>> listByConsumerAndProduct(Consumer consumer,
         String productId, PageRequest pageRequest) {
-        DetachedCriteria query = DetachedCriteria.forClass(Entitlement.class)
+        Criteria query = createSecureCriteria()
             .add(Restrictions.eq("consumer", consumer));
 
         Page<List<Entitlement>> page = listByCriteria(query, pageRequest, true);

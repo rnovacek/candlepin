@@ -24,7 +24,8 @@ import org.candlepin.config.ConfigProperties;
 
 import com.google.inject.Inject;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -47,47 +48,44 @@ import javax.ws.rs.core.MediaType;
 @Path("/")
 public class RootResource {
 
-    private static Logger log = Logger.getLogger(RootResource.class);
-    public static final List<Class> RESOURCE_CLASSES;
-    public static final Map<String, Method> PSEUDO_RESOURCES;
+    private static Logger log = LoggerFactory.getLogger(RootResource.class);
+    public static final Map<Object, String> RESOURCE_CLASSES;
     private Config config;
     private static List<Link> links = null;
 
     static {
-        RESOURCE_CLASSES = new LinkedList<Class>();
-        RESOURCE_CLASSES.add(AdminResource.class);
-        RESOURCE_CLASSES.add(UserResource.class);
-        RESOURCE_CLASSES.add(AtomFeedResource.class);
-        RESOURCE_CLASSES.add(CertificateSerialResource.class);
-        RESOURCE_CLASSES.add(ConsumerResource.class);
-        RESOURCE_CLASSES.add(ConsumerTypeResource.class);
-        RESOURCE_CLASSES.add(ContentResource.class);
-        RESOURCE_CLASSES.add(CrlResource.class);
-        RESOURCE_CLASSES.add(EntitlementResource.class);
-        RESOURCE_CLASSES.add(EventResource.class);
-        RESOURCE_CLASSES.add(JobResource.class);
-        RESOURCE_CLASSES.add(OwnerResource.class);
-        RESOURCE_CLASSES.add(PoolResource.class);
-        RESOURCE_CLASSES.add(ProductResource.class);
-        RESOURCE_CLASSES.add(RulesResource.class);
-        RESOURCE_CLASSES.add(StatisticResource.class);
-        RESOURCE_CLASSES.add(StatusResource.class);
-        RESOURCE_CLASSES.add(SubscriptionResource.class);
-        RESOURCE_CLASSES.add(ActivationKeyResource.class);
-        RESOURCE_CLASSES.add(RoleResource.class);
-        RESOURCE_CLASSES.add(MigrationResource.class);
-        RESOURCE_CLASSES.add(HypervisorResource.class);
-        RESOURCE_CLASSES.add(EnvironmentResource.class);
-        RESOURCE_CLASSES.add(RootResource.class);
-        RESOURCE_CLASSES.add(DistributorVersionResource.class);
-        RESOURCE_CLASSES.add(DeletedConsumerResource.class);
-
-        PSEUDO_RESOURCES = new HashMap<String, Method>();
-        Method m;
+        RESOURCE_CLASSES = new HashMap<Object, String>();
+        addResource(AdminResource.class);
+        addResource(UserResource.class);
+        addResource(AtomFeedResource.class);
+        addResource(CertificateSerialResource.class);
+        addResource(CdnResource.class);
+        addResource(ConsumerResource.class);
+        addResource(ConsumerTypeResource.class);
+        addResource(ContentResource.class);
+        addResource(CrlResource.class);
+        addResource(EntitlementResource.class);
+        addResource(EventResource.class);
+        addResource(JobResource.class);
+        addResource(OwnerResource.class);
+        addResource(PoolResource.class);
+        addResource(ProductResource.class);
+        addResource(RulesResource.class);
+        addResource(StatisticResource.class, "statistics/generate");
+        addResource(StatusResource.class);
+        addResource(SubscriptionResource.class);
+        addResource(ActivationKeyResource.class);
+        addResource(RoleResource.class);
+        addResource(MigrationResource.class);
+        addResource(HypervisorResource.class);
+        addResource(EnvironmentResource.class);
+        addResource(RootResource.class);
+        addResource(DistributorVersionResource.class);
+        addResource(DeletedConsumerResource.class);
+        addResource(GuestIdResource.class);
         try {
-            m = ConsumerResource.class.getMethod("getContentOverrideList",
-                String.class);
-            PSEUDO_RESOURCES.put("content_overrides", m);
+            addResource(ConsumerResource.class.getMethod(
+                "getContentOverrideList", String.class));
         }
         catch (NoSuchMethodException e) {
             // If the method name changes, throwing this will abort deployment.
@@ -101,27 +99,27 @@ public class RootResource {
         this.config = config;
     }
 
-    @SecurityHole(noAuth = true, anon = true)
     protected List<Link> createLinks() {
         // Hidden resources will be omitted from the supported list we send to the clients:
         List<String> hideResources = Arrays.asList(config.getString(
             ConfigProperties.HIDDEN_RESOURCES).split(" "));
 
         List<Link> newLinks = new LinkedList<Link>();
-        for (Class clazz : RESOURCE_CLASSES) {
-            add(resourceLink(clazz), hideResources, newLinks);
-        }
-
-        for (Map.Entry<String, Method> entry : PSEUDO_RESOURCES.entrySet()) {
-            String rel = entry.getKey();
-            Method method = entry.getValue();
-
-            add(methodLink(rel, method), hideResources, newLinks);
+        for (Map.Entry<Object, String> entry : RESOURCE_CLASSES.entrySet()) {
+            add(resourceLink(entry.getKey(), entry.getValue()),
+                hideResources, newLinks);
         }
         return newLinks;
     }
 
-    @SecurityHole(noAuth = true, anon = true)
+    protected String generateRel(String href) {
+        int index = href.lastIndexOf("/");
+        if (index == -1) {
+            return href;
+        }
+        return href.substring(index + 1);
+    }
+
     protected Link methodLink(String rel, Method m) {
         Path resource = m.getDeclaringClass().getAnnotation(Path.class);
         Path method = m.getAnnotation(Path.class);
@@ -130,20 +128,26 @@ public class RootResource {
         // Remove doubled slashes and trailing slash
         href = href.replaceAll("/+", "/").replaceAll("/$", "");
 
+        if (rel == null) {
+            rel = generateRel(href);
+        }
         return new Link(rel, href);
     }
 
-    @SecurityHole(noAuth = true, anon = true)
-    protected Link resourceLink(Class clazz) {
+    protected Link classLink(String rel, Class clazz) {
         Path a = (Path) clazz.getAnnotation(Path.class);
         String href = a.value();
-        String rel = href;
-        // Chop off leading "/" for the resource name:
-        if (rel.charAt(0) == '/') {
-            rel = rel.substring(1);
+        if (rel == null) {
+            rel = generateRel(href);
         }
-
         return new Link(rel, href);
+    }
+
+    protected Link resourceLink(Object resource, String rel) {
+        if (resource instanceof Method) {
+            return methodLink(rel, (Method) resource);
+        }
+        return classLink(rel, (Class) resource);
     }
 
     private void add(Link link, List<String> hideResources, List<Link> newLinks) {
@@ -172,5 +176,13 @@ public class RootResource {
             links = createLinks();
         }
         return links;
+    }
+
+    private static void addResource(Object resource, String rel) {
+        RESOURCE_CLASSES.put(resource, rel);
+    }
+
+    private static void addResource(Object resource) {
+        addResource(resource, null);
     }
 }

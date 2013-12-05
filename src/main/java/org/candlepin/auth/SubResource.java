@@ -12,22 +12,17 @@
  * granted to use or replicate Red Hat trademarks that are incorporated
  * in this software or its documentation.
  */
-package org.candlepin.util;
-
+package org.candlepin.auth;
 
 /**
- * ManagerCapability
+ * Enumeration of the sub-targets used in the Candlepin permission model.
+ * @see AuthInterceptor
  */
-public class ManagerCapability {
-
-    private static String[] capabilities = {"cores", "ram", "instance_multiplier",
-        "derived_product", "cert_v3"};
-
-    private ManagerCapability() {
-        // Quiet checkstyle
-    }
-
-    public static String[] getCapabilityList() {
-        return capabilities;
-    }
+public enum SubResource {
+    NONE,
+    ENTITLEMENTS, // pool or consumer entitlements
+    CONSUMERS, // org consumers
+    POOLS, // org pools
+    SUBSCRIPTIONS, // org subscriptions
+    SERVICE_LEVELS; // org service levels
 }

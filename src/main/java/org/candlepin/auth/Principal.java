@@ -14,9 +14,10 @@
  */
 package org.candlepin.auth;
 
-import org.apache.log4j.Logger;
 import org.candlepin.auth.permissions.Permission;
 import org.candlepin.util.Util;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -27,28 +28,34 @@ import java.util.List;
  */
 public abstract class Principal implements Serializable {
 
-    private static Logger log = Logger.getLogger(Principal.class);
+    private static final long serialVersionUID = 907789978604269132L;
+
+    private static Logger log = LoggerFactory.getLogger(Principal.class);
     protected List<Permission> permissions = new ArrayList<Permission>();
 
     public abstract String getType();
 
     public abstract boolean hasFullAccess();
 
+    public List<Permission> getPermissions() {
+        return permissions;
+    }
+
     protected void addPermission(Permission permission) {
         this.permissions.add(permission);
     }
 
-    public boolean canAccess(Object target, Access access) {
-        log.debug(this.getClass().getName() + " principal checking for access to: " +
-            target);
+    public boolean canAccess(Object target, SubResource subResource, Access access) {
+        log.debug("{} principal checking for {} access to target: {} sub-resource: {}",
+            new Object [] {this.getClass().getName(), access, target, subResource});
 
         if (hasFullAccess()) {
             return true;
         }
 
         for (Permission permission : permissions) {
-            log.debug(" perm class: " + permission.getClass().getName());
-            if (permission.canAccess(target, access)) {
+            log.debug(" checking permission: {}", permission.getClass().getName());
+            if (permission.canAccess(target, subResource, access)) {
                 log.debug("  permission granted");
                 // if any of the principal's permissions allows access, then
                 // we are good to go

@@ -14,29 +14,6 @@
  */
 package org.candlepin.sync;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
-import java.security.cert.CertificateException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-
-import javax.persistence.PersistenceException;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
 import org.candlepin.audit.EventSink;
 import org.candlepin.config.Config;
 import org.candlepin.controller.PoolManager;
@@ -60,19 +37,43 @@ import org.candlepin.model.ProductCurator;
 import org.candlepin.model.Subscription;
 import org.candlepin.model.SubscriptionCurator;
 import org.candlepin.pki.PKIUtility;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.hibernate.exception.ConstraintViolationException;
-import org.xnap.commons.i18n.I18n;
 
 import com.google.inject.Inject;
 import com.google.inject.persist.Transactional;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.StringUtils;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.hibernate.exception.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xnap.commons.i18n.I18n;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Reader;
+import java.security.cert.CertificateException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+import javax.persistence.PersistenceException;
 
 
 /**
  * Importer
  */
 public class Importer {
-    private static Logger log = Logger.getLogger(Importer.class);
+    private static Logger log = LoggerFactory.getLogger(Importer.class);
 
     /**
      *
@@ -235,7 +236,6 @@ public class Importer {
         ConflictOverrides overrides)
         throws ImporterException {
         File tmpDir = null;
-        InputStream exportStream = null;
         Map<String, Object> result = new HashMap<String, Object>();
         try {
             tmpDir = new SyncUtils(config).makeTempDir("import");
@@ -329,14 +329,6 @@ public class Importer {
                     log.error("Failed to delete extracted export", e);
                 }
             }
-            if (exportStream != null) {
-                try {
-                    exportStream.close();
-                }
-                catch (Exception e) {
-                    // nothing we can do.
-                }
-            }
         }
     }
 
@@ -427,7 +419,7 @@ public class Importer {
         if (!conflictExceptions.isEmpty()) {
             log.error("Conflicts occurred during import that were not overridden:");
             for (ImportConflictException e : conflictExceptions) {
-                log.error(e.message().getConflicts());
+                log.error("{}", e.message().getConflicts());
             }
             throw new ImportConflictException(conflictExceptions);
         }
@@ -526,7 +518,7 @@ public class Importer {
             }
             else {
                 log.warn("Extra file found in upstream_consumer directory: " +
-                    (uc != null ? uc.getName() : "null"));
+                    uc.getName());
             }
         }
 
@@ -628,41 +620,53 @@ public class Importer {
         throws IOException, ImportExtractionException {
         log.debug("Extracting archive to: " + tempDir.getAbsolutePath());
         byte[] buf = new byte[1024];
-        ZipInputStream zipinputstream = new ZipInputStream(new FileInputStream(exportFile));
-        ZipEntry zipentry = zipinputstream.getNextEntry();
 
-        if (zipentry == null) {
-            throw new ImportExtractionException(i18n.tr("The archive {0} is not " +
-                "a properly compressed file or is empty", exportFile.getName()));
+        ZipInputStream zipinputstream = null;
+
+        try {
+            zipinputstream = new ZipInputStream(new FileInputStream(exportFile));
+            ZipEntry zipentry = zipinputstream.getNextEntry();
+
+            if (zipentry == null) {
+                throw new ImportExtractionException(i18n.tr("The archive {0} is not " +
+                    "a properly compressed file or is empty", exportFile.getName()));
+            }
+
+            while (zipentry != null) {
+                //for each entry to be extracted
+                String entryName = zipentry.getName();
+                if (log.isDebugEnabled()) {
+                    log.debug("entryname " + entryName);
+                }
+                File newFile = new File(entryName);
+                String directory = newFile.getParent();
+                if (directory != null) {
+                    new File(tempDir, directory).mkdirs();
+                }
+
+                FileOutputStream fileoutputstream = null;
+                try {
+                    fileoutputstream = new FileOutputStream(new File(tempDir, entryName));
+                    int n;
+                    while ((n = zipinputstream.read(buf, 0, 1024)) > -1) {
+                        fileoutputstream.write(buf, 0, n);
+                    }
+                }
+                finally {
+                    if (fileoutputstream != null) {
+                        fileoutputstream.close();
+                    }
+                }
+
+                zipinputstream.closeEntry();
+                zipentry = zipinputstream.getNextEntry();
+            }
         }
-
-        while (zipentry != null) {
-            //for each entry to be extracted
-            String entryName = zipentry.getName();
-            if (log.isDebugEnabled()) {
-                log.debug("entryname " + entryName);
+        finally {
+            if (zipinputstream != null) {
+                zipinputstream.close();
             }
-            FileOutputStream fileoutputstream;
-            File newFile = new File(entryName);
-            String directory = newFile.getParent();
-            if (directory != null) {
-                new File(tempDir, directory).mkdirs();
-            }
-
-            fileoutputstream = new FileOutputStream(new File(tempDir, entryName));
-
-            int n;
-            while ((n = zipinputstream.read(buf, 0, 1024)) > -1) {
-                fileoutputstream.write(buf, 0, n);
-            }
-
-            fileoutputstream.close();
-            zipinputstream.closeEntry();
-            zipentry = zipinputstream.getNextEntry();
-
         }
-
-        zipinputstream.close();
 
         return new File(tempDir.getAbsolutePath(), "export");
     }

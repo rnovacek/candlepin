@@ -14,38 +14,14 @@
  */
 package org.candlepin.resource;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringTokenizer;
-
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.DefaultValue;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.MultivaluedMap;
-
-import org.apache.log4j.Logger;
+import org.apache.commons.lang.StringUtils;
 import org.candlepin.audit.Event;
 import org.candlepin.audit.EventAdapter;
 import org.candlepin.audit.EventFactory;
 import org.candlepin.audit.EventSink;
 import org.candlepin.auth.Access;
 import org.candlepin.auth.Principal;
+import org.candlepin.auth.SubResource;
 import org.candlepin.auth.interceptor.Verify;
 import org.candlepin.controller.PoolManager;
 import org.candlepin.exceptions.BadRequestException;
@@ -75,8 +51,8 @@ import org.candlepin.model.Owner;
 import org.candlepin.model.OwnerCurator;
 import org.candlepin.model.OwnerInfo;
 import org.candlepin.model.OwnerInfoCurator;
-import org.candlepin.model.OwnerPermission;
-import org.candlepin.model.OwnerPermissionCurator;
+import org.candlepin.model.PermissionBlueprint;
+import org.candlepin.model.PermissionBlueprintCurator;
 import org.candlepin.model.Pool;
 import org.candlepin.model.Statistic;
 import org.candlepin.model.StatisticCurator;
@@ -97,6 +73,12 @@ import org.candlepin.sync.Importer;
 import org.candlepin.sync.ImporterException;
 import org.candlepin.sync.Meta;
 import org.candlepin.sync.SyncDataFormatException;
+
+import ch.qos.logback.classic.Level;
+
+import com.google.inject.Inject;
+import com.google.inject.persist.Transactional;
+
 import org.jboss.resteasy.annotations.providers.jaxb.Wrapped;
 import org.jboss.resteasy.plugins.providers.atom.Feed;
 import org.jboss.resteasy.plugins.providers.multipart.InputPart;
@@ -104,10 +86,34 @@ import org.jboss.resteasy.plugins.providers.multipart.MultipartInput;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.jboss.resteasy.util.GenericType;
 import org.quartz.JobDetail;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xnap.commons.i18n.I18n;
 
-import com.google.inject.Inject;
-import com.google.inject.persist.Transactional;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
+
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
 
 /**
  * Owner Resource
@@ -126,12 +132,12 @@ public class OwnerResource {
     private EventSink sink;
     private EventFactory eventFactory;
     private EventAdapter eventAdapter;
-    private static Logger log = Logger.getLogger(OwnerResource.class);
+    private static Logger log = LoggerFactory.getLogger(OwnerResource.class);
     private EventCurator eventCurator;
     private Importer importer;
     private ExporterMetadataCurator exportCurator;
     private ImportRecordCurator importRecordCurator;
-    private OwnerPermissionCurator permissionCurator;
+    private PermissionBlueprintCurator permissionCurator;
     private PoolManager poolManager;
     private ConsumerTypeCurator consumerTypeCurator;
     private EntitlementCertificateCurator entitlementCertCurator;
@@ -155,7 +161,7 @@ public class OwnerResource {
         OwnerInfoCurator ownerInfoCurator,
         ImportRecordCurator importRecordCurator,
         SubscriptionServiceAdapter subService,
-        OwnerPermissionCurator permCurator,
+        PermissionBlueprintCurator permCurator,
         ConsumerTypeCurator consumerTypeCurator,
         EntitlementCertificateCurator entitlementCertCurator,
         EntitlementCurator entitlementCurator,
@@ -355,7 +361,7 @@ public class OwnerResource {
             importRecordCurator.delete(record);
         }
 
-        for (OwnerPermission perm : permissionCurator.findByOwner(owner)) {
+        for (PermissionBlueprint perm : permissionCurator.findByOwner(owner)) {
             log.info("Deleting permission: " + perm.getAccess());
             perm.getRole().getPermissions().remove(perm);
             permissionCurator.delete(perm);
@@ -439,7 +445,7 @@ public class OwnerResource {
     @Path("{owner_key}/servicelevels")
     public Set<String> ownerServiceLevels(
         @PathParam("owner_key") @Verify(value = Owner.class,
-            require = Access.READ_SERVICE_LEVELS) String ownerKey) {
+        subResource = SubResource.SERVICE_LEVELS) String ownerKey) {
         Owner owner = findOwner(ownerKey);
 
         return poolManager.retrieveServiceLevelsForOwner(owner, false);
@@ -549,6 +555,41 @@ public class OwnerResource {
         return envs;
     }
 
+    @PUT
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("{owner_key}/log")
+    public Owner setLogLevel(@PathParam("owner_key") String ownerKey,
+        @QueryParam("level") @DefaultValue("DEBUG") String level) {
+        Owner owner = findOwner(ownerKey);
+        level = level.toUpperCase();
+
+        List<String> acceptedLevels = new ArrayList<String>();
+        acceptedLevels.add(Level.ALL.toString());
+        acceptedLevels.add(Level.TRACE.toString());
+        acceptedLevels.add(Level.DEBUG.toString());
+        acceptedLevels.add(Level.INFO.toString());
+        acceptedLevels.add(Level.WARN.toString());
+        acceptedLevels.add(Level.ERROR.toString());
+        acceptedLevels.add(Level.OFF.toString());
+
+        if (!acceptedLevels.contains(level)) {
+            throw new BadRequestException(i18n.tr("{0} is not a valid log level", level));
+        }
+
+        owner.setLogLevel(level);
+        ownerCurator.merge(owner);
+        return owner;
+    }
+
+    @DELETE
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("{owner_key}/log")
+    public void deleteLogLevel(@PathParam("owner_key") String ownerKey) {
+        Owner owner = findOwner(ownerKey);
+        owner.setLogLevel(null);
+        ownerCurator.merge(owner);
+    }
+
     /**
      * Return the consumers for the owner of the given id.
      *
@@ -562,10 +603,11 @@ public class OwnerResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Path("{owner_key}/consumers")
     @Paginate
-    public List<Consumer> ownerConsumers(
-        @PathParam("owner_key") @Verify(Owner.class) String ownerKey,
+    public List<Consumer> listConsumers(
+        @PathParam("owner_key")
+        @Verify(value = Owner.class, subResource = SubResource.CONSUMERS) String ownerKey,
         @QueryParam("username") String userName,
-        @QueryParam("type") String typeLabel,
+        @QueryParam("type") Set<String> typeLabels,
         @QueryParam("uuid") @Verify(value = Consumer.class, nullable = true)
             List<String> uuids,
         @Context PageRequest pageRequest) {
@@ -573,23 +615,24 @@ public class OwnerResource {
         Owner owner = findOwner(ownerKey);
 
         if (uuids == null || uuids.isEmpty()) {
-            ConsumerType type = null;
+            List<ConsumerType> types = null;
 
-            if (typeLabel != null) {
-                type = lookupConsumerType(typeLabel);
+            if (typeLabels != null && !typeLabels.isEmpty()) {
+                types = lookupConsumerTypes(typeLabels);
             }
 
             // We don't look up the user and warn if it doesn't exist here to not
             // give away usernames
             Page<List<Consumer>> p = consumerCurator.listByUsernameAndType(userName,
-                type, owner, pageRequest);
+                types, owner, pageRequest);
 
             // Store the page for the LinkHeaderPostInterceptor
             ResteasyProviderFactory.pushContext(Page.class, p);
             return p.getPageData();
         }
         else {
-            if (userName != null || typeLabel != null || pageRequest != null) {
+            if (userName != null || (typeLabels != null && !typeLabels.isEmpty()) ||
+                    pageRequest != null) {
                 throw new BadRequestException(
                     i18n.tr("Cannot specify other query parameters with consumer IDs."));
             }
@@ -598,14 +641,21 @@ public class OwnerResource {
         }
     }
 
-    private ConsumerType lookupConsumerType(String label) {
-        ConsumerType type = consumerTypeCurator.lookupByLabel(label);
-
-        if (type == null) {
-            throw new BadRequestException(i18n.tr("No such unit type: {0}",
-                label));
+    private List<ConsumerType> lookupConsumerTypes(Set<String> labels) {
+        List<ConsumerType> types = consumerTypeCurator.lookupByLabels(labels);
+        // Since the type labels are unique, our sizes must match.
+        if (labels.size() != types.size()) {
+            List<String> invalidLabels = new ArrayList<String>(labels);
+            for (ConsumerType type : types) {
+                String label = type.getLabel();
+                if (labels.contains(label)) {
+                    invalidLabels.remove(label);
+                }
+            }
+            throw new BadRequestException(i18n.tr("No such unit type(s): {0}",
+                StringUtils.join(invalidLabels, ", ")));
         }
-        return type;
+        return types;
     }
 
 
@@ -622,9 +672,9 @@ public class OwnerResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Path("{owner_key}/pools")
     @Paginate
-    public List<Pool> getPools(
+    public List<Pool> listPools(
         @PathParam("owner_key")
-            @Verify(value = Owner.class, require = Access.READ_POOLS) String ownerKey,
+            @Verify(value = Owner.class, subResource = SubResource.POOLS) String ownerKey,
         @QueryParam("consumer") String consumerUuid,
         @QueryParam("product") String productId,
         @QueryParam("listall") @DefaultValue("false") boolean listAll,
@@ -652,7 +702,7 @@ public class OwnerResource {
                     "Consumer specified does not belong to owner on path");
             }
 
-            if (!principal.canAccess(c, Access.READ_ONLY)) {
+            if (!principal.canAccess(c, SubResource.NONE, Access.READ_ONLY)) {
                 throw new ForbiddenException(i18n.tr("User {0} cannot access consumer {1}",
                     principal.getPrincipalName(), c.getUuid()));
             }
@@ -737,7 +787,8 @@ public class OwnerResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Path("{owner_key}/subscriptions")
     public List<Subscription> getSubscriptions(
-        @PathParam("owner_key") @Verify(Owner.class) String ownerKey) {
+        @PathParam("owner_key") @Verify(value = Owner.class,
+            subResource = SubResource.SUBSCRIPTIONS) String ownerKey) {
         Owner o = findOwner(ownerKey);
         return subService.getSubscriptions(o);
     }

@@ -19,7 +19,8 @@ import org.candlepin.util.VersionUtil;
 
 import com.google.inject.persist.Transactional;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.InputStream;
@@ -32,14 +33,14 @@ import java.util.List;
  * RulesCurator
  */
 public class RulesCurator extends AbstractHibernateCurator<Rules> {
-    private static Logger log = Logger.getLogger(RulesCurator.class);
+    private static Logger log = LoggerFactory.getLogger(RulesCurator.class);
     public static final String DEFAULT_RULES_FILE = "/rules/rules.js";
 
     /*
      * Current rules API major version number. (the x in x.y) If a rules file does not
      * match this major version number exactly, we do not import the rules.
      */
-    public static final int RULES_API_VERSION = 4;
+    public static final int RULES_API_VERSION = 5;
 
     protected RulesCurator() {
         super(Rules.class);

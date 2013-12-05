@@ -17,7 +17,6 @@ package org.candlepin.pki.impl;
 import com.google.inject.Inject;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.log4j.Logger;
 import org.bouncycastle.asn1.ASN1InputStream;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.x509.CRLNumber;
@@ -49,6 +48,8 @@ import org.mozilla.jss.pkix.cert.Extension;
 import org.mozilla.jss.pkix.primitive.AlgorithmIdentifier;
 import org.mozilla.jss.pkix.primitive.Name;
 import org.mozilla.jss.pkix.primitive.SubjectPublicKeyInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -105,7 +106,7 @@ import javax.naming.ldap.Rdn;
  */
 @SuppressWarnings("deprecation")
 public class JSSPKIUtility extends PKIUtility {
-    private static Logger log = Logger.getLogger(JSSPKIUtility.class);
+    private static Logger log = LoggerFactory.getLogger(JSSPKIUtility.class);
 
     protected SubjectKeyIdentifierWriter subjectKeyWriter;
     public static final String SUBJECT_ALT_NAME_OID = "2.5.29.17";
@@ -282,10 +283,10 @@ public class JSSPKIUtility extends PKIUtility {
             return digest.digest(data);
         }
         catch (NoSuchAlgorithmException e) {
-            log.error(e);
+            log.error("NoSuchAlgorithmException:", e);
         }
         catch (NoSuchProviderException e) {
-            log.error(e);
+            log.error("NoSuchProviderException:", e);
         }
         return new byte[0];
     }

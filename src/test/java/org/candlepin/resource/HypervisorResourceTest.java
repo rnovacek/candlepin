@@ -22,6 +22,7 @@ import static org.mockito.Mockito.when;
 import org.candlepin.audit.EventFactory;
 import org.candlepin.audit.EventSink;
 import org.candlepin.auth.Access;
+import org.candlepin.auth.SubResource;
 import org.candlepin.auth.UserPrincipal;
 import org.candlepin.config.CandlepinCommonTestConfig;
 import org.candlepin.model.ActivationKeyCurator;
@@ -41,7 +42,6 @@ import org.candlepin.resource.dto.HypervisorCheckInResult;
 import org.candlepin.service.IdentityCertServiceAdapter;
 import org.candlepin.service.SubscriptionServiceAdapter;
 import org.candlepin.service.UserServiceAdapter;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -117,7 +117,7 @@ public class HypervisorResourceTest {
             this.userService, null, null, null, this.ownerCurator,
             this.activationKeyCurator, null, this.complianceRules,
             this.deletedConsumerCurator, null, null, new CandlepinCommonTestConfig(),
-            null, null, null, null, null);
+            null, null, null, null, null, null);
 
         hypervisorResource = new HypervisorResource(consumerResource,
             consumerCurator, this.deletedConsumerCurator, i18n);
@@ -143,7 +143,8 @@ public class HypervisorResourceTest {
 
         when(consumerCurator.findByUuid(eq("test-host"))).thenReturn(null);
         when(ownerCurator.lookupByKey(eq(owner.getKey()))).thenReturn(owner);
-        when(principal.canAccess(eq(owner), eq(Access.ALL))).thenReturn(true);
+        when(principal.canAccess(eq(owner), eq(SubResource.CONSUMERS), eq(Access.CREATE))).
+            thenReturn(true);
         when(consumerTypeCurator.lookupByLabel(
             eq(ConsumerTypeEnum.HYPERVISOR.getLabel()))).thenReturn(hypervisorType);
         when(idCertService.generateIdentityCert(any(Consumer.class)))
