@@ -38,7 +38,8 @@ public class ConfigProperties {
 
     public static final String CANDLEPIN_URL = "candlepin.url";
 
-    public static final String CA_KEY_ALIAS = "candlepin.ca_key_alias";
+    public static final String CA_ALIAS = "candlepin.ca_alias";
+    public static final String CA_TOKEN_PREFIX = "candlepin.ca_token_prefix";
     public static final String CA_KEY = "candlepin.ca_key";
     public static final String CA_CERT = "candlepin.ca_cert";
     public static final String CA_KEYSTORE = "candlepin.keystore";
@@ -158,7 +159,8 @@ public class ConfigProperties {
 
                 this.put(CA_KEYSTORE, "/etc/candlepin/certs/keystore");
                 this.put(CA_KEY, "/etc/candlepin/certs/candlepin-ca.key");
-                this.put(CA_KEY_ALIAS, "tomcat");
+                this.put(CA_ALIAS, "tomcat");
+                this.put(CA_TOKEN_PREFIX, "NSS system database:");
                 this.put(CA_KEY_PASSWORD, "password");
                 this.put(CA_CERT, "/etc/candlepin/certs/candlepin-ca.crt");
                 this.put(CA_CERT_UPSTREAM, "/etc/candlepin/certs/upstream");

@@ -36,9 +36,6 @@ import org.mozilla.jss.CryptoManager;
 import org.mozilla.jss.CryptoManager.NotInitializedException;
 import org.mozilla.jss.crypto.ObjectNotFoundException;
 import org.mozilla.jss.crypto.TokenException;
-import org.mozilla.jss.util.Password;
-import org.mozilla.jss.util.PasswordCallback;
-import org.mozilla.jss.util.PasswordCallbackInfo;
 
 import com.google.inject.Inject;
 
@@ -78,7 +75,6 @@ public class JSSPKIReader implements PKIReader {
 
         try {
             this.cryptoManager = CryptoManager.getInstance();
-            this.cryptoManager.setPasswordCallback(new JSSPasswordCallback());
             log.info("FIPS status is " + cryptoManager.FIPSEnabled());
             certFactory = CertificateFactory.getInstance("X.509");
         }
@@ -186,32 +182,3 @@ public class JSSPKIReader implements PKIReader {
 
 }
 
-class JSSPasswordCallback implements PasswordCallback {
-
-    /*
-     * (non-Javadoc)
-     * @see
-     * org.mozilla.jss.util.PasswordCallback#getPasswordAgain(org.mozilla.jss
-     * .util.PasswordCallbackInfo)
-     */
-    @Override
-    public Password getPasswordAgain(PasswordCallbackInfo arg0)
-        throws GiveUpException {
-        System.out.println("HELLO!");
-        return new Password("password".toCharArray());
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see
-     * org.mozilla.jss.util.PasswordCallback#getPasswordFirstAttempt(org.mozilla
-     * .jss.util.PasswordCallbackInfo)
-     */
-    @Override
-    public Password getPasswordFirstAttempt(PasswordCallbackInfo arg0)
-        throws GiveUpException {
-        System.out.println("HELLO!");
-        return new Password("password".toCharArray());
-    }
-
-}
