@@ -31,7 +31,7 @@ Name: candlepin
 Summary: Candlepin is an open source entitlement management system
 Group: System Environment/Daemons
 License: GPLv2
-Version: 0.8.33
+Version: 0.9.1
 Release: 1%{?dist}
 URL: http://fedorahosted.org/candlepin
 # Source0: https://fedorahosted.org/releases/c/a/candlepin/%{name}-%{version}.tar.gz
@@ -51,7 +51,7 @@ BuildRequires: selinux-policy-doc
 %define distlibdir %{_datadir}/%{name}/lib/
 %define libdir %{_datadir}/%{name}/lib/
 %define usecpdeps "usecpdeps"
-BuildRequires: candlepin-deps >= 0:0.1.5
+BuildRequires: candlepin-deps >= 0:0.2.1
 %else
 %define usecpdeps ""
 
@@ -60,17 +60,20 @@ BuildRequires: candlepin-deps >= 0:0.1.5
 BuildRequires: scl-utils-build
 BuildRequires: candlepin-scl
 
+BuildRequires: antlr >= 0:2.7.7
 BuildRequires: bouncycastle
-BuildRequires: hibernate3 >= 3.3.2
-BuildRequires: hibernate3-annotations >= 0:3.4.0
+BuildRequires: hibernate4-core >= 0:4.2.5
+BuildRequires: hibernate4-c3p0 >= 0:4.2.5
+BuildRequires: javassist >= 3.12.0
+BuildRequires: commons-collections >= 3.1
 
 # for schema
-BuildRequires: hibernate3-entitymanager >= 0:3.4.0
-BuildRequires: hibernate3-commons-annotations
+BuildRequires: hibernate4-entitymanager >= 0:4.2.5
+BuildRequires: hibernate3-commons-annotations >= 0:4.0.1
 
 BuildRequires: google-collections >= 0:1.0
 BuildRequires: resteasy >= 0:2.3.1
-BuildRequires: hornetq >= 0:2.2.11
+BuildRequires: hornetq >= 0:2.3.5
 BuildRequires: google-guice >= 0:3.0
 BuildRequires: logback-classic
 BuildRequires: jakarta-commons-lang
@@ -84,15 +87,16 @@ BuildRequires: codehaus-jackson-mapper-lgpl
 BuildRequires: codehaus-jackson-xc
 BuildRequires: codehaus-jackson-jaxrs
 BuildRequires: jakarta-commons-httpclient
-BuildRequires: jpa_1_0_api
+BuildRequires: hibernate-jpa-2.0-api >= 1.0.1
 BuildRequires: netty
 BuildRequires: glassfish-jaxb
 BuildRequires: jms >= 0:1.1
 BuildRequires: oauth
 BuildRequires: slf4j-api >= 0:1.7.5
+BuildRequires: jcl-over-slf4j >= 0:1.7.5
 
 # needed to setup runtime deps, not for compilation
-BuildRequires: c3p0
+BuildRequires: c3p0 >= 0.9.1.2
 BuildRequires: scannotation
 BuildRequires: postgresql-jdbc
 BuildRequires: servlet
@@ -114,12 +118,15 @@ Requires: postgresql-jdbc
 # if not using cpdeps, we'll need real requires
 %if !0%{?reqcpdeps}
 # candlepin webapp requires
+Requires: antlr >= 0:2.7.7
 Requires: bouncycastle
-Requires: hibernate3 >= 3.3.2
-Requires: hibernate3-annotations >= 0:3.4.0
-Requires: hibernate3-entitymanager >= 0:3.4.0
+Requires: hibernate4-core >= 0:4.2.5
+Requires: hibernate4-entitymanager >= 0:4.2.5
+Requires: hibernate4-c3p0 >= 0:4.2.5
+Requires: hibernate3-commons-annotations >= 0:4.0.1
+Requires: hibernate-jpa-2.0-api >= 0:1.0.1
 Requires: candlepin-scl
-Requires: c3p0
+Requires: c3p0 >= 0:0.9.1.2
 Requires: resteasy >= 0:2.3.1
 Requires: google-guice >= 0:3.0
 Requires: codehaus-jackson >= 0:1.9.2
@@ -127,7 +134,7 @@ Requires: codehaus-jackson-xc
 Requires: codehaus-jackson-core-lgpl
 Requires: codehaus-jackson-mapper-lgpl
 Requires: codehaus-jackson-jaxrs
-Requires: hornetq >= 0:2.2.11
+Requires: hornetq >= 0:2.3.5
 Requires: netty
 Requires: oauth
 Requires: logback-classic
@@ -143,6 +150,10 @@ Requires: jakarta-commons-httpclient
 Requires: google-collections >= 0:1.0
 Requires: apache-mime4j
 Requires: gettext-commons
+Requires: javamail
+Requires: javassist >= 3.12.0
+Requires: commons-collections >= 3.1
+
 %endif
 %define __jar_repack %{nil}
 
@@ -328,6 +339,33 @@ fi
 
 
 %changelog
+* Wed Dec 11 2013 jesus m. rodriguez <jesusr@redhat.com> 0.9.1-1
+- bump candlepin-deps to include hibernate4, change brew tag, package version (jesusr@redhat.com)
+- Update jars and related code for Hibernate version 4.2.5 (wpoteat@redhat.com)
+- Comment addition for field to explain number and need. (wpoteat@redhat.com)
+- Remove post filtering where possible (ckozak@redhat.com)
+- Dont list expired ents or ent certs (ckozak@redhat.com)
+- Let hibernate filter pools for product ID (ckozak@redhat.com)
+- Add jcl-over-slf4j to replace commons-logging. (awood@redhat.com)
+- Modify buildfile to allow msgfmt to run for specific locales.  (awood@redhat.com)
+- Fix apidoc generation (alikins@redhat.com)
+
+* Mon Dec 09 2013 jesus m. rodriguez <jesusr@redhat.com> 0.8.34-1
+- 1030604: Single error message when adding blacklisted overrides (mstead@redhat.com)
+- 1030644: performance fix for distributors with lots of ents. (dgoodwin@redhat.com)
+- Updated translations. (dgoodwin@redhat.com)
+- Set RestEasy to use SLF4J. (awood@redhat.com)
+- Replace commons-logging with jcl-over-slf4j. (awood@redhat.com)
+- Switch logging implementation to logback. (awood@redhat.com)
+- Switch to slf4j. (awood@redhat.com)
+- Upgrade to SLF4J 1.7.5. (awood@redhat.com)
+- fixed guest consumer entitlement revocation (ckozak@redhat.com)
+- Refactored permissions model (dgoodwin@redhat.com)
+- Add guest_limit attribute to compliance (ckozak@redhat.com)
+- findbugs: various fixes (jesusr@redhat.com)
+- Bumping rules minor version (mstead@redhat.com)
+- Fixed issue with checking override black list (mstead@redhat.com)
+
 * Thu Nov 14 2013 jesus m. rodriguez <jesusr@redhat.com> 0.8.33-1
 - Correct variable (wpoteat@redhat.com)
 - Update for using keyword 'key' as column name (wpoteat@redhat.com)
