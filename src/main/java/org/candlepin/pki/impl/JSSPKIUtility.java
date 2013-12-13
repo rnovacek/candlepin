@@ -164,7 +164,7 @@ public class JSSPKIUtility extends PKIUtility {
             BIT_STRING certType = new BIT_STRING(new byte[]{(byte) (128 | 32)}, 0);
             this.addExtension(cInfo, NETSCAPE_CERT_TYPE_OID, false, certType);
 
-            // The subject key identifier is a sha1 hash of hte public key of the subject
+            // The subject key identifier is a sha1 hash of the public key of the subject
             byte[] keyData = clientKeyPair.getPublic().getEncoded();
             keyData = this.sha1Digest(keyData);
             OCTET_STRING subkjectKeyString = new OCTET_STRING(keyData);
@@ -188,7 +188,6 @@ public class JSSPKIUtility extends PKIUtility {
 /*
             certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false,
                 new AuthorityKeyIdentifierStructure(caCert));
-                ca
             certGen.addExtension(X509Extensions.SubjectKeyIdentifier, false,
                   subjectKeyWriter.getSubjectKeyIdentifier(clientKeyPair, extensions));
 */
@@ -322,7 +321,7 @@ public class JSSPKIUtility extends PKIUtility {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         Base64 b64 = new Base64(64);
         String header = "-----BEGIN " + type + "-----\r\n";
-        String footer = "-----END " + type + "-----";
+        String footer = "-----END " + type + "-----\r\n";
         byteArrayOutputStream.write(header.getBytes());
         byteArrayOutputStream.write(b64.encode(data));
         byteArrayOutputStream.write(footer.getBytes());
