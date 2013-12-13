@@ -180,7 +180,7 @@ public class JSSPKIUtility extends PKIUtility {
 
             SEQUENCE authKeySeq = new SEQUENCE();
             authKeySeq.addElement(new Tag(0), subkjectKeyString);
-            //authKeySeq.addElement(new Tag(1), issuer);
+            authKeySeq.addElement(new Tag(1), issuer);
             authKeySeq.addElement(new Tag(2), new INTEGER(caCert.getSerialNumber()));
 
             this.addExtension(cInfo, AUTHORITY_KEY_IDENTIFIER_OID, false, authKeySeq);
