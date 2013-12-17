@@ -40,6 +40,7 @@ import org.mozilla.jss.asn1.OBJECT_IDENTIFIER;
 import org.mozilla.jss.asn1.OCTET_STRING;
 import org.mozilla.jss.asn1.SEQUENCE;
 import org.mozilla.jss.asn1.Tag;
+import org.mozilla.jss.asn1.UTF8String;
 import org.mozilla.jss.crypto.SignatureAlgorithm;
 import org.mozilla.jss.crypto.TokenException;
 import org.mozilla.jss.pkix.cert.Certificate;
@@ -167,19 +168,22 @@ public class JSSPKIUtility extends PKIUtility {
             // The subject key identifier is a sha1 hash of the public key of the subject
             byte[] keyData = clientKeyPair.getPublic().getEncoded();
             keyData = this.sha1Digest(keyData);
-            OCTET_STRING subkjectKeyString = new OCTET_STRING(keyData);
+            OCTET_STRING subjectKeyString = new OCTET_STRING(keyData);
 
-            this.addExtension(cInfo, SUBJECT_KEY_IDENTIFIER_OID, false, subkjectKeyString);
+            this.addExtension(cInfo, SUBJECT_KEY_IDENTIFIER_OID, false, subjectKeyString);
 
             // The authors key identifier is a sequence, with the first being the
             // sha1 of the ca key, and then the issuer, then the serial number
             keyData = caCert.getPublicKey().getEncoded();
             keyData = this.sha1Digest(keyData);
-            subkjectKeyString = new OCTET_STRING(keyData);
+            subjectKeyString = new OCTET_STRING(keyData);
 
 
+            // TODO: not coming out the same as the old bounceycastle code
+            // This is an optional extension and generally used when an issuer has multiple
+            // signing keys. Do we need to even bother setting this?
             SEQUENCE authKeySeq = new SEQUENCE();
-            authKeySeq.addElement(new Tag(0), subkjectKeyString);
+            authKeySeq.addElement(new Tag(0), subjectKeyString);
             authKeySeq.addElement(new Tag(1), issuer);
             authKeySeq.addElement(new Tag(2), new INTEGER(caCert.getSerialNumber()));
 
@@ -192,7 +196,7 @@ public class JSSPKIUtility extends PKIUtility {
                   subjectKeyWriter.getSubjectKeyIdentifier(clientKeyPair, extensions));
 */
 
-            // Add Extdended Key Usage
+            // Add Extended Key Usage
             SEQUENCE seq = new SEQUENCE();
             seq.addElement(new OBJECT_IDENTIFIER("1.3.6.1.5.5.7.3.2"));
             this.addExtension(cInfo, EXTENDED_KEY_USAGE_OID, false, seq);
@@ -269,10 +273,20 @@ public class JSSPKIUtility extends PKIUtility {
     protected void addExtension(CertificateInfo cInfo, X509ExtensionWrapper wrapper)
         throws  CertificateException {
         String value = wrapper.getValue() == null ? "" :  wrapper.getValue();
+
+        UTF8String extValue = null;
+        try {
+            extValue = new UTF8String(value);
+        }
+        catch (CharConversionException e) {
+            // TODO: look at all error handling in here
+            log.error("CharConversionException", e);
+        }
+
         Extension ext = new Extension(
             new OBJECT_IDENTIFIER(wrapper.getOid()),
             wrapper.isCritical(),
-            new OCTET_STRING(value.getBytes()));
+            new OCTET_STRING(ASN1Util.encode(extValue)));
         cInfo.addExtension(ext);
     }
 
