@@ -263,10 +263,14 @@ public class JSSPKIUtility extends PKIUtility {
         throws  CertificateException {
         byte[] value = wrapper.getValue() == null ? new byte[0] :
             wrapper.getValue();
+
+        OCTET_STRING extValue = new OCTET_STRING(value);
+
+
         Extension ext = new Extension(
             new OBJECT_IDENTIFIER(wrapper.getOid()),
             wrapper.isCritical(),
-            new OCTET_STRING(value));
+            new OCTET_STRING(ASN1Util.encode(extValue)));
         cInfo.addExtension(ext);
     }
 
