@@ -18,6 +18,9 @@ import com.google.inject.Inject;
 
 import org.apache.commons.codec.binary.Base64;
 import org.bouncycastle.asn1.ASN1InputStream;
+import org.bouncycastle.asn1.ASN1Object;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.CRLReason;
@@ -39,7 +42,6 @@ import org.mozilla.jss.asn1.InvalidBERException;
 import org.mozilla.jss.asn1.OBJECT_IDENTIFIER;
 import org.mozilla.jss.asn1.OCTET_STRING;
 import org.mozilla.jss.asn1.SEQUENCE;
-import org.mozilla.jss.asn1.Tag;
 import org.mozilla.jss.asn1.UTF8String;
 import org.mozilla.jss.crypto.SignatureAlgorithm;
 import org.mozilla.jss.crypto.TokenException;
@@ -63,6 +65,7 @@ import java.security.KeyPair;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.PublicKey;
 import java.security.cert.CRLException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
@@ -70,6 +73,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Set;
 
@@ -154,7 +158,6 @@ public class JSSPKIUtility extends PKIUtility {
                 this.parseDN(dn),
                 subjectInfo);
 
-
             // set key usage - required for proper x509 function
             // Key Usage is digitalSignature | keyEncipherment | dataEncipherment
             BIT_STRING keyUsage = new BIT_STRING(new byte[]{(byte) (128 | 32 | 16)}, 0);
@@ -165,29 +168,17 @@ public class JSSPKIUtility extends PKIUtility {
             BIT_STRING certType = new BIT_STRING(new byte[]{(byte) (128 | 32)}, 0);
             this.addExtension(cInfo, NETSCAPE_CERT_TYPE_OID, false, certType);
 
-            // The subject key identifier is a sha1 hash of the public key of the subject
-            byte[] keyData = clientKeyPair.getPublic().getEncoded();
-            keyData = this.sha1Digest(keyData);
-            OCTET_STRING subjectKeyString = new OCTET_STRING(keyData);
-
-            this.addExtension(cInfo, SUBJECT_KEY_IDENTIFIER_OID, false, subjectKeyString);
+            setSubjectKeyIdentifier(clientKeyPair, cInfo);
 
             // The authors key identifier is a sequence, with the first being the
             // sha1 of the ca key, and then the issuer, then the serial number
-            keyData = caCert.getPublicKey().getEncoded();
-            keyData = this.sha1Digest(keyData);
-            subjectKeyString = new OCTET_STRING(keyData);
-
-
             // TODO: not coming out the same as the old bounceycastle code
-            // This is an optional extension and generally used when an issuer has multiple
-            // signing keys. Do we need to even bother setting this?
-            SEQUENCE authKeySeq = new SEQUENCE();
-            authKeySeq.addElement(new Tag(0), subjectKeyString);
-            authKeySeq.addElement(new Tag(1), issuer);
-            authKeySeq.addElement(new Tag(2), new INTEGER(caCert.getSerialNumber()));
-
-            this.addExtension(cInfo, AUTHORITY_KEY_IDENTIFIER_OID, false, authKeySeq);
+//            SEQUENCE authKeySeq = new SEQUENCE();
+//            authKeySeq.addElement(new Tag(0), subjectKeyString);
+//            authKeySeq.addElement(new Tag(1), issuer);
+//            authKeySeq.addElement(new Tag(2), new INTEGER(caCert.getSerialNumber()));
+//
+//            this.addExtension(cInfo, AUTHORITY_KEY_IDENTIFIER_OID, false, authKeySeq);
 
 /*
             certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false,
@@ -235,6 +226,47 @@ public class JSSPKIUtility extends PKIUtility {
         }
         catch (TokenException e) {
             throw new GeneralSecurityException(e);
+        }
+    }
+
+    /*
+     * Adds the subject key identifier extension. This is a SHA1 of the subject's DER
+     * encoded public key.
+     *
+     * The process to get the DER encoded public key is somewhat involved, so to avoid
+     * having to write something ourselves this method uses bouncycastle *only* for
+     * ASN1 and DER work, then switches back to JSS to compute the actual SHA1 hash.
+     * Thus we remain FIPS compliant in that we do not use bouncycastle for any
+     * crypto/hashing.
+     */
+    private void setSubjectKeyIdentifier(KeyPair clientKeyPair,
+        CertificateInfo cInfo) throws IOException, CertificateException {
+        // The subject key identifier is a sha1 hash of the public key of the subject
+        PublicKey pubKey = clientKeyPair.getPublic();
+
+        // This code roughly follows what bouncycastle does behind the scenes in it's
+        // SubjectKeyIdentifierStructure class.
+        ASN1InputStream aIn = null;
+        try {
+            aIn = new ASN1InputStream(pubKey.getEncoded());
+            ASN1Object obj = (ASN1Object) aIn.readObject();
+            ASN1Sequence seq = ASN1Sequence.getInstance(obj);
+
+            Enumeration e = seq.getObjects();
+            org.bouncycastle.asn1.x509.AlgorithmIdentifier algId =
+                org.bouncycastle.asn1.x509.AlgorithmIdentifier.getInstance(e.nextElement());
+            DERBitString derKeyData = DERBitString.getInstance(e.nextElement());
+
+            byte[] keyData = derKeyData.getBytes();
+
+            // Calculate the SHA1 hash using JSS:
+            keyData = this.sha1Digest(keyData);
+            OCTET_STRING subjectKeyString = new OCTET_STRING(keyData);
+
+            this.addExtension(cInfo, SUBJECT_KEY_IDENTIFIER_OID, false, subjectKeyString);
+        }
+        finally {
+            aIn.close();
         }
     }
 
