@@ -190,6 +190,17 @@ public class ComplianceRulesTest {
         Entitlement ent = this.mockBaseStackedEntitlement(consumer, stackId, productId,
             providedProductIds);
         ent.getPool().setProductAttribute("sockets", "2", productId);
+        ent.getPool().setProductAttribute("vcpu", "1", productId);
+        ent.getPool().setAttribute("requires_host", "SOMEUUID");
+        return ent;
+    }
+
+    private Entitlement mockNonStackedHostRestrictedEntitlement(Consumer consumer,
+        String stackId, String productId, String ... providedProductIds) {
+        Entitlement ent = this.mockEntitlement(consumer, productId,
+            providedProductIds);
+        ent.getPool().setProductAttribute("sockets", "2", productId);
+        ent.getPool().setProductAttribute("vcpu", "1", productId);
         ent.getPool().setAttribute("requires_host", "SOMEUUID");
         return ent;
     }
@@ -786,25 +797,62 @@ public class ComplianceRulesTest {
 
         mockEntCurator(consumer, Arrays.asList(ent1, ent2, ent3));
 
-        // Set up entitlements at specific dates.
-//        Date statusDate = TestUtil.createDate(2005, 6, 14);
-//        when(entCurator.listByConsumerAndDate(eq(consumer),
-//            eq(statusDate))).thenReturn(Arrays.asList(ent1, ent3));
-//
-//        when(entCurator.listByConsumerAndDate(eq(consumer),
-//            eq(addSecond(ent1.getEndDate())))).thenReturn(Arrays.asList(ent2, ent3));
-//
-//        when(entCurator.listByConsumerAndDate(eq(consumer),
-//            eq(addSecond(ent2.getEndDate())))).thenReturn(
-//                Arrays.asList(new Entitlement[0]));
-//
-//        Date expectedDate = addSecond(ent3.getEndDate());
-//        when(entCurator.listByConsumerAndDate(eq(consumer),
-//            eq(expectedDate))).thenReturn(Arrays.asList(ent2));
-
         Date statusDate = TestUtil.createDate(2005, 6, 14);
         Date expectedDate = addSecond(ent3.getEndDate());
         ComplianceStatus status = compliance.getStatus(consumer, statusDate);
+        assertEquals(expectedDate, status.getCompliantUntil());
+    }
+
+    @Test
+    public void compliantUntilDateUsesFutureEntitlements() {
+        Consumer consumer = mockConsumer(PRODUCT_1, PRODUCT_2);
+
+        Date start = TestUtil.createDate(2005, 6, 12);
+
+        List<Entitlement> ents = new LinkedList<Entitlement>();
+        int iterations = 5;
+        int interval = 1000;
+        for (int i = 0; i < interval * iterations; i += interval) {
+            ents.add(mockEntitlement(consumer, "Provides Product 1 For Short Period",
+                new Date(start.getTime() + i),
+                new Date(start.getTime() + i + interval), PRODUCT_1));
+            ents.add(mockEntitlement(consumer, "Provides Product 2 For Short Period",
+                new Date(start.getTime() + i),
+                new Date(start.getTime() + i + interval), PRODUCT_2));
+        }
+
+        mockEntCurator(consumer, ents);
+
+        Date expectedDate = addSecond(
+            new Date(start.getTime() + interval * (iterations - 1) + interval));
+        ComplianceStatus status = compliance.getStatus(consumer, start);
+        assertEquals("valid", status.getStatus());
+        assertEquals(expectedDate, status.getCompliantUntil());
+    }
+
+    @Test
+    public void compliantUntilReturnsNullIfNoProductsInstalled() {
+        Consumer consumer = mockConsumer();
+
+        Date start = TestUtil.createDate(2005, 6, 12);
+
+        List<Entitlement> ents = new LinkedList<Entitlement>();
+        int iterations = 5;
+        int interval = 1000;
+        for (int i = 0; i < interval * iterations; i += interval) {
+            ents.add(mockEntitlement(consumer, "Provides Product 1 For Short Period",
+                new Date(start.getTime() + i),
+                new Date(start.getTime() + i + interval), PRODUCT_1));
+            ents.add(mockEntitlement(consumer, "Provides Product 2 For Short Period",
+                new Date(start.getTime() + i),
+                new Date(start.getTime() + i + interval), PRODUCT_2));
+        }
+
+        mockEntCurator(consumer, ents);
+
+        Date expectedDate = null;
+        ComplianceStatus status = compliance.getStatus(consumer, start);
+        assertEquals("valid", status.getStatus());
         assertEquals(expectedDate, status.getCompliantUntil());
     }
 
@@ -1280,6 +1328,28 @@ public class ComplianceRulesTest {
     }
 
     @Test
+    public void singleSocketInstanceBasedPhysicalGreen() {
+        Consumer c = mockConsumer(PRODUCT_1, PRODUCT_2);
+        c.setFact("cpu.cpu_socket(s)", "1");
+        List<Entitlement> ents = new LinkedList<Entitlement>();
+        ents.add(mockInstanceEntitlement(c, STACK_ID_1, "2", "Awesome Product",
+            PRODUCT_1, PRODUCT_2));
+        ents.get(0).getPool().setProductAttribute("sockets", "1", PRODUCT_1);
+        ents.get(0).setQuantity(2);
+        mockEntCurator(c, ents);
+
+        ComplianceStatus status = compliance.getStatus(c, TestUtil.createDate(2011, 8, 30));
+
+        assertEquals(ComplianceStatus.GREEN, status.getStatus());
+        assertEquals(0, status.getNonCompliantProducts().size());
+        assertEquals(0, status.getPartiallyCompliantProducts().size());
+
+        assertEquals(2, status.getCompliantProducts().size());
+        assertTrue(status.getCompliantProducts().keySet().contains(PRODUCT_1));
+        assertTrue(status.getCompliantProducts().keySet().contains(PRODUCT_2));
+    }
+
+    @Test
     public void instanceBasedPhysicalStackedGreen() {
         Consumer c = mockConsumer(PRODUCT_1, PRODUCT_2);
         List<Entitlement> ents = new LinkedList<Entitlement>();
@@ -1319,6 +1389,13 @@ public class ComplianceRulesTest {
         assertEquals(2, status.getPartiallyCompliantProducts().size());
         assertTrue(status.getPartiallyCompliantProducts().keySet().contains(PRODUCT_1));
         assertTrue(status.getPartiallyCompliantProducts().keySet().contains(PRODUCT_2));
+
+        // Should be covered for 6 of 8 sockets, not 7 because the quantity is
+        // adjusted for sockets to a multiple of the instance multiplier
+        assertEquals(1, status.getReasons().size());
+        ComplianceReason reason = status.getReasons().iterator().next();
+        assertEquals("SOCKETS", reason.getKey());
+        assertEquals("6", reason.getAttributes().get("covered"));
     }
 
     @Test
@@ -1346,6 +1423,7 @@ public class ComplianceRulesTest {
     public void hostRestrictedVirtualGreen() {
         Consumer c = mockConsumer(PRODUCT_1, PRODUCT_2);
         c.setFact("virt.is_guest", "true");
+        c.setFact("cpu.core(s)_per_socket", "20");
         List<Entitlement> ents = new LinkedList<Entitlement>();
         ents.add(mockHostRestrictedEntitlement(c, STACK_ID_1, "Awesome Product",
             PRODUCT_1, PRODUCT_2));
@@ -1364,23 +1442,30 @@ public class ComplianceRulesTest {
     }
 
     /*
-     * Testing behaviour from a (possibly) temporary hack where we skip compliance
-     * calculation for distributor consumers, as these should never have installed products
-     * and status in general is not really applicable to them.
-     *
-     * This test may need to be removed if we restore calculation for distributors at some
-     * point.
+     * We should not run compliance on host restricted subscriptions,
+     * even if they aren't stackable
      */
     @Test
-    public void distributorStatusAlwaysGreen() {
-        Consumer c = mockConsumerWithTwoProductsAndNoEntitlements();
-        c.setType(new ConsumerType(ConsumerType.ConsumerTypeEnum.CANDLEPIN));
+    public void hostNonStackedRestrictedVirtualGreen() {
+        Consumer c = mockConsumer(PRODUCT_1, PRODUCT_2);
+        c.setFact("virt.is_guest", "true");
+        c.setFact("cpu.core(s)_per_socket", "20");
+        List<Entitlement> ents = new LinkedList<Entitlement>();
+        ents.add(mockNonStackedHostRestrictedEntitlement(c, "Awesome Product",
+            PRODUCT_1, PRODUCT_2));
+        ents.get(0).setQuantity(1);
+        ents.get(0).getPool().setProductAttribute("vcpu", "1", PRODUCT_1);
+        mockEntCurator(c, ents);
 
         ComplianceStatus status = compliance.getStatus(c, TestUtil.createDate(2011, 8, 30));
 
+        assertEquals(ComplianceStatus.GREEN, status.getStatus());
         assertEquals(0, status.getNonCompliantProducts().size());
         assertEquals(0, status.getPartiallyCompliantProducts().size());
-        assertEquals(ComplianceStatus.GREEN, status.getStatus());
+
+        assertEquals(2, status.getCompliantProducts().size());
+        assertTrue(status.getCompliantProducts().keySet().contains(PRODUCT_1));
+        assertTrue(status.getCompliantProducts().keySet().contains(PRODUCT_2));
     }
 
     @Test
@@ -1744,6 +1829,81 @@ public class ComplianceRulesTest {
         // Now that we've added the hypervisor,
         // the base guest_limit of 4 should be overridden
         assertTrue(compliance.isStackCompliant(c, "mockServerStack", ents));
+    }
+
+    @Test
+    public void virtualSingleEntOnlyUsesVcpuAndRam() {
+        Consumer c = mockConsumer(PRODUCT_1);
+        c.setFact("virt.is_guest", "true");
+        c.setFact("cpu.core(s)_per_socket", "8");
+        c.setFact("cpu.cpu_socket(s)", "10");
+        c.setFact("memory.memtotal", "8000000"); // 8GB RAM
+
+        List<Entitlement> ents = new LinkedList<Entitlement>();
+        Entitlement ent = mockEntitlement(c, "Awesome Product",
+            PRODUCT_1);
+        ent.getPool().setProductAttribute("cores", "1", PRODUCT_1);
+        ent.getPool().setProductAttribute("ram", "1", PRODUCT_1);
+        ent.getPool().setProductAttribute("sockets", "1", PRODUCT_1);
+        ent.getPool().setProductAttribute("vcpu", "1", PRODUCT_1);
+        ents.add(ent);
+        ents.get(0).setQuantity(1);
+        mockEntCurator(c, ents);
+
+        ComplianceStatus status = compliance.getStatus(c, TestUtil.createDate(2011, 8, 30));
+
+        assertEquals(ComplianceStatus.YELLOW, status.getStatus());
+        assertEquals(0, status.getNonCompliantProducts().size());
+        assertEquals(1, status.getPartiallyCompliantProducts().size());
+        assertEquals(0, status.getCompliantProducts().size());
+        assertTrue(status.getPartiallyCompliantProducts().keySet().contains(PRODUCT_1));
+
+        // We should be partial because of ram and vcpus, nothing else
+        assertEquals(2, status.getReasons().size());
+        List<String> reasonKeys = new LinkedList<String>();
+        for (ComplianceReason r : status.getReasons()) {
+            reasonKeys.add(r.getKey());
+        }
+        assertTrue(reasonKeys.contains("RAM"));
+        assertTrue(reasonKeys.contains("VCPU"));
+    }
+
+    @Test
+    public void virtualStackedOnlyUsesVcpuAndRam() {
+        Consumer c = mockConsumer(PRODUCT_1, PRODUCT_2);
+        c.setFact("virt.is_guest", "true");
+        c.setFact("cpu.core(s)_per_socket", "8");
+        c.setFact("cpu.cpu_socket(s)", "10");
+        c.setFact("memory.memtotal", "8000000"); // 8GB RAM
+
+        List<Entitlement> ents = new LinkedList<Entitlement>();
+        Entitlement ent = mockBaseStackedEntitlement(c, STACK_ID_1, "2", "Awesome Product",
+            PRODUCT_1, PRODUCT_2);
+        ent.getPool().setProductAttribute("cores", "1", PRODUCT_1);
+        ent.getPool().setProductAttribute("ram", "1", PRODUCT_1);
+        ent.getPool().setProductAttribute("sockets", "1", PRODUCT_1);
+        ent.getPool().setProductAttribute("vcpu", "1", PRODUCT_1);
+        ents.add(ent);
+        ents.get(0).setQuantity(1);
+        mockEntCurator(c, ents);
+
+        ComplianceStatus status = compliance.getStatus(c, TestUtil.createDate(2011, 8, 30));
+
+        assertEquals(ComplianceStatus.YELLOW, status.getStatus());
+        assertEquals(0, status.getNonCompliantProducts().size());
+        assertEquals(2, status.getPartiallyCompliantProducts().size());
+        assertEquals(0, status.getCompliantProducts().size());
+        assertTrue(status.getPartiallyCompliantProducts().keySet().contains(PRODUCT_1));
+        assertTrue(status.getPartiallyCompliantProducts().keySet().contains(PRODUCT_2));
+
+        // We should be partial because of ram and vcpus, nothing else
+        assertEquals(2, status.getReasons().size());
+        List<String> reasonKeys = new LinkedList<String>();
+        for (ComplianceReason r : status.getReasons()) {
+            reasonKeys.add(r.getKey());
+        }
+        assertTrue(reasonKeys.contains("RAM"));
+        assertTrue(reasonKeys.contains("VCPU"));
     }
 
     private void mockEntCurator(Consumer c, List<Entitlement> ents) {

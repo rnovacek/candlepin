@@ -1,4 +1,4 @@
-// Version: 5.0
+// Version: 5.5
 
 /*
  * Default Candlepin rule set.
@@ -57,30 +57,14 @@ var REQUIRES_HOST_ATTRIBUTE = "requires_host";
 var VIRT_ONLY = "virt_only";
 var POOL_DERIVED = "pool_derived";
 var GUEST_LIMIT_ATTRIBUTE = "guest_limit";
+var VCPU_ATTRIBUTE = "vcpu";
+var MULTI_ENTITLEMENT_ATTRIBUTE = "multi-entitlement";
 
 // caller types
 var BEST_POOLS_CALLER = "best_pools";
 var BIND_CALLER = "bind";
 var LIST_POOLS_CALLER = "list_pools";
 var UNKNOWN_CALLER = "unknown";
-
-/**
- *  These product attributes are considered when
- *  determiningToAdd coverage of a consumer. Adding an
- *  attribute here, tells the CoverageCalculator
- *  to enforce the attribute.
- *
- *  NOTE: If you add an attribute to here, you MUST
- *        map it to a corresponding fact in
- *        ATTRIBUTES_TO_CONSUMER_FACTS.
- */
-var ATTRIBUTES_AFFECTING_COVERAGE = [
-    ARCH_ATTRIBUTE,
-    SOCKETS_ATTRIBUTE,
-    CORES_ATTRIBUTE,
-    RAM_ATTRIBUTE,
-    GUEST_LIMIT_ATTRIBUTE
-];
 
 /**
  * A FactValueCalculator allows the rules to determine which
@@ -99,17 +83,14 @@ ATTRIBUTES_TO_CONSUMER_FACTS[SOCKETS_ATTRIBUTE] = SOCKET_FACT;
 ATTRIBUTES_TO_CONSUMER_FACTS[CORES_ATTRIBUTE] = CORES_FACT;
 ATTRIBUTES_TO_CONSUMER_FACTS[ARCH_ATTRIBUTE] = ARCH_FACT;
 ATTRIBUTES_TO_CONSUMER_FACTS[RAM_ATTRIBUTE] = RAM_FACT;
+ATTRIBUTES_TO_CONSUMER_FACTS[VCPU_ATTRIBUTE] = CORES_FACT;
 
 /**
  *  These product attributes are considered when determining
  *  coverage of a consumer by a stack. Add an attribute here
  *  to enable stacking on the product attribute.
- *
- *  NOTE: If adding an attribute, be sure to also add it to
- *        ATTRIBUTES_AFFECTING_COVERAGE so that the
- *        CoverageCalculator knows to enforce it.
  */
-var STACKABLE_ATTRIBUTES = [
+var PHYSICAL_ATTRIBUTES = [
     SOCKETS_ATTRIBUTE,
     CORES_ATTRIBUTE,
     RAM_ATTRIBUTE,
@@ -117,15 +98,42 @@ var STACKABLE_ATTRIBUTES = [
     GUEST_LIMIT_ATTRIBUTE
 ];
 
+var VIRT_ATTRIBUTES = [
+    VCPU_ATTRIBUTE,
+    RAM_ATTRIBUTE,
+    ARCH_ATTRIBUTE,
+    GUEST_LIMIT_ATTRIBUTE
+];
+
+/**
+ * These product attributes will not be considered on
+ * pools that are host restricted/
+ */
+var UNCHECKED_WHEN_HOST_RESTRICTED = [
+    RAM_ATTRIBUTE,
+    VCPU_ATTRIBUTE
+];
+
 /**
  * These product attributes are considered by grouping them
  * with the same attribute on all other subscriptions on
  * the system.
  */
-var GLOBAL_STACKABLE_ATTRIBUTES = [
+var GLOBAL_ATTRIBUTES = [
     GUEST_LIMIT_ATTRIBUTE
 ];
 
+/*
+ * Depending on the consumer, different attributes may
+ * affect compliance.
+ */
+function getComplianceAttributes(consumer) {
+    // Currently we only differentiate between physical/virtual
+    if (Utils.isGuest(consumer)) {
+        return VIRT_ATTRIBUTES;
+    }
+    return PHYSICAL_ATTRIBUTES;
+}
 
 /*
  * Model object related functions.
@@ -284,7 +292,7 @@ function hasNoProductOverlap(combination) {
             log.debug("product overlap: " + productId);
             if (!contains(seen_product_ids, productId)) {
                 seen_product_ids.push(productId);
-            } else if (pool.getProductAttribute("multi-entitlement") != "yes") {
+            } else if (!Utils.isMultiEnt(pool)) {
                 return false;
             }
         }
@@ -299,7 +307,7 @@ function hasNoInstalledOverlap(pool, compliance) {
     for (var i = 0 ; i < products.length ; i++) {
         var productId = products[i];
         log.debug("installed overlap: " + productId);
-        if (pool.getProductAttribute("multi-entitlement") != "yes" &&
+        if (!Utils.isMultiEnt(pool) &&
             Object.hasOwnProperty(compliance.compliantProducts, productId)) {
             return false;
         }
@@ -351,15 +359,6 @@ function getPoolQuantity(pool, attributeName) {
         }
     }
     return null;
-}
-
-
-function get_pool_sockets(pool) {
-    return getPoolQuantity(pool, SOCKETS_ATTRIBUTE);
-}
-
-function getPoolCores(pool) {
-    return getPoolQuantity(pool, CORES_ATTRIBUTE);
 }
 
 /**
@@ -418,6 +417,10 @@ var FactValueCalculator = {
             return cores;
         },
 
+        vcpu: function (prodAttr, consumer) {
+            return FactValueCalculator.getFact(CORES_ATTRIBUTE, consumer);
+        },
+
         guest_limit: function (prodAttr, consumer) {
             if (consumer.guestIds === null) {
                 return 0;
@@ -447,7 +450,7 @@ var FactValueCalculator = {
 /*
  * This Attribute Calculator works similarly to others, except that it is
  * specific to global attributes such as guest_limit.  It needs to check
- * every attached entitlement on the system, as a stackTracker needs to
+ * every attached entitlement on the system, as a complianceTracker needs to
  * check every entitlement in the stack.
  *
  * TODO: Cache this value when possible. It's only O(n), but we can avoid
@@ -571,33 +574,32 @@ var CoverageCalculator = {
             /**
              *  Checks to make sure that the architecture matches that of the consumer.
              */
-            arch: function (sourceData, prodAttr, consumer) {
-                var context = Entitlement.get_attribute_context();
-
-                var supportedArchs = prodAttr in sourceData.values ? sourceData.values[prodAttr] : "";
+            arch: function (complianceTracker, prodAttr, consumer) {
+                var supportedArchs = complianceTracker.enforces(prodAttr) ? complianceTracker.getAccumulatedValue(prodAttr) : [];
                 var consumerArch = ARCH_FACT in consumer.facts ?
                     consumer.facts[ARCH_FACT] : null;
 
-                var covered = architectureMatches(supportedArchs, consumerArch, consumer.type.label);
-                log.debug("  System architecture covered: " + covered);
-
-                var reason = null;
-                if (!covered) {
-                    reason = StatusReasonGenerator.buildReason(prodAttr.toUpperCase(),
-                                                               sourceData.type,
-                                                               sourceData.id,
-                                                               consumerArch,
-                                                               supportedArchs);
+                for (var archStringIdx in supportedArchs) {
+                    var archString = supportedArchs[archStringIdx];
+                    if (!architectureMatches(archString, consumerArch, consumer.type.label)) {
+                        log.debug("  System architecture not covered by: " + archString);
+                        return StatusReasonGenerator.buildReason(prodAttr.toUpperCase(),
+                                                             complianceTracker.type,
+                                                             complianceTracker.id,
+                                                             consumerArch,
+                                                             archString);
+                    }
                 }
-                return reason;
+                log.debug("  System architecture is covered.");
+                return null;
             },
 
             /**
              * Same int compare as the default, except -1 is unlimited
              */
-            guest_limit: function (sourceData, prodAttr, consumer) {
+            guest_limit: function (complianceTracker, prodAttr, consumer) {
                 var consumerQuantity = FactValueCalculator.getFact(prodAttr, consumer);
-                var sourceValue = sourceData.values[prodAttr];
+                var sourceValue = complianceTracker.getAccumulatedValue(prodAttr);
 
                 var covered = (sourceValue == -1) || (parseInt(sourceValue) >= consumerQuantity);
                 log.debug("  System's " + prodAttr + " covered: " + covered);
@@ -605,8 +607,8 @@ var CoverageCalculator = {
                 var reason = null;
                 if (!covered) {
                     reason = StatusReasonGenerator.buildReason(prodAttr.toUpperCase(),
-                            sourceData.type,
-                            sourceData.id,
+                            complianceTracker.type,
+                            complianceTracker.id,
                             consumerQuantity,
                             sourceValue);
                 }
@@ -621,9 +623,9 @@ var CoverageCalculator = {
              *  NOTE: If comparing non integer attributes, a special condition should
              *        be added to handle that case.
              */
-            default: function(sourceData, prodAttr, consumer) {
+            default: function(complianceTracker, prodAttr, consumer) {
                 var consumerQuantity = FactValueCalculator.getFact(prodAttr, consumer);
-                var sourceValue = sourceData.values[prodAttr];
+                var sourceValue = complianceTracker.getAccumulatedValue(prodAttr);
 
                 // We assume that the value coming back is an int right now.
                 var covered = parseInt(sourceValue) >= consumerQuantity;
@@ -632,8 +634,8 @@ var CoverageCalculator = {
                 var reason = null;
                 if (!covered) {
                     reason = StatusReasonGenerator.buildReason(prodAttr.toUpperCase(),
-                                                               sourceData.type,
-                                                               sourceData.id,
+                                                               complianceTracker.type,
+                                                               complianceTracker.id,
                                                                consumerQuantity,
                                                                sourceValue);
                 }
@@ -650,134 +652,38 @@ var CoverageCalculator = {
      *      consumer - consumer in question
      *      attributeValue - sockets covered by normal accumulation rules
      *                     (sockets attribute * quantity)
-     *      instanceMultiplier - Product attribute, may be null.
      *
      *      Return: actual value covered
      */
-    adjustCoverage: function(attribute, consumer, attributeValue, instanceMultiplier, entitlements) {
-        if (Utils.inArray(GLOBAL_STACKABLE_ATTRIBUTES, attribute)) {
+    adjustCoverage: function(attribute, consumer, attributeValue, entitlements) {
+        if (Utils.inArray(GLOBAL_ATTRIBUTES, attribute)) {
             attributeValue = GlobalAttributeCalculator.getValue(attribute, entitlements);
         }
 
-        if (attribute == SOCKETS_ATTRIBUTE && instanceMultiplier) {
-            var instanceMultiplier = parseInt(instanceMultiplier);
-            // Stack tracker "enforces" method means we can assume here that
-            // the system must be physical:
-            // Adjust the quantity covered based on the instance multiplier,
-            // and then round down to the nearest multipler of that instance
-            // multiplier.
-            //
-            // i.e. for a physical system:
-            //      8 sockets accumulated = 4 covered
-            //      9 sockets accumulated = 4 covered
-            //      1 socket accumulated = 0 covered
-            log.debug("  Physical system using instance based subscription.");
-            initialValue = attributeValue; // just so we can log accurately
-            attributeValue = attributeValue / instanceMultiplier;
-            // Round uneven multiples down:
-            attributeValue = attributeValue - (attributeValue % instanceMultiplier);
-
-            log.debug("  Adjusting sockets covered from: " +
-                      initialValue + " to: " + attributeValue);
-        }
         return attributeValue;
-    },
-
-    /**
-     *  Determines the amount of consumer coverage provided by the specified
-     *  entitlement.
-     */
-    getEntitlementCoverage: function(entitlement, consumer, entitlements) {
-        var poolValues = this.getValues(entitlement.pool, "hasProductAttribute", "getProductAttribute",
-                                        consumer, entitlement.pool.getProductAttribute(INSTANCE_ATTRIBUTE), entitlements);
-        var sourceData = this.buildSourceData("ENTITLEMENT", entitlement.id,
-                                              poolValues, entitlement.pool.getProductAttribute(INSTANCE_ATTRIBUTE));
-        var coverage = this.getCoverageForSource(sourceData, consumer, this.getDefaultConditions());
-        log.debug("Entitlement covered: " + coverage.percentage);
-        return coverage;
     },
 
     /**
      *  Determines the amount of consumer coverage provided by the specified
      *  stack.
      */
-    getStackCoverage: function(stackTracker, consumer, entitlements) {
+    getStackCoverage: function(complianceTracker, consumer, entitlements) {
         log.debug("Coverage calculator is checking stack coverage...");
-        var stackValues = this.getValues(stackTracker, "enforces", "getAccumulatedValue",
-                                         consumer, stackTracker.instanceMultiplier, entitlements);
         var conditions = this.getDefaultConditions();
 
-        /**
-         *  NOTE: Extend default conditions here for stacks, if required.
-         */
-        conditions.arch = function (sourceData, prodAttr, consumer) {
-            var supportedArchs = prodAttr in sourceData.values ? sourceData.values[prodAttr] : [];
-            var consumerArch = ARCH_FACT in consumer.facts ?
-                consumer.facts[ARCH_FACT] : null;
-
-            for (var archStringIdx in supportedArchs) {
-                var archString = supportedArchs[archStringIdx];
-                if (!architectureMatches(archString, consumerArch, consumer.type.label)) {
-                    log.debug("  System architecture not covered by: " + archString);
-                    return StatusReasonGenerator.buildReason(prodAttr.toUpperCase(),
-                                                             sourceData.type,
-                                                             sourceData.id,
-                                                             consumerArch,
-                                                             archString);
-                }
-            }
-            log.debug("  System architecture is covered.");
-            return null;
-        };
-
-        var sourceData = this.buildSourceData("STACK", stackTracker.stackId,
-                                              stackValues,
-                                              stackTracker.instanceMultiplier);
-        var coverage = this.getCoverageForSource(sourceData, consumer, conditions);
-        log.debug("Stack coverage: " + coverage.percentage);
-        return coverage;
-    },
-
-    /**
-     *  Returns the product attribute values that the source object will cover.
-     *  The values are returned as an object which maps each attribute to its value.
-     *
-     *  This function is very dynamic in nature:
-     *      source:
-     *            Can be any JS object but must define both functions below.
-     *      sourceContainsAttributeValueFunctionName:
-     *            Name of the source's function that checks if the specified attribute exists.
-     *      getValueFromSourceFunctionName:
-     *            Name of the source's function that fetchs the value of the specified attribute.
-     */
-    getValues: function (source, sourceContainsAttributeValueFunctionName, getValueFromSourceFunctionName,
-                         consumer, instanceMultiplier, entitlements) {
-        var values = {};
-        for (var attrIdx in ATTRIBUTES_AFFECTING_COVERAGE) {
-            var nextAttr = ATTRIBUTES_AFFECTING_COVERAGE[attrIdx];
-            if (source[sourceContainsAttributeValueFunctionName](nextAttr)) {
-                values[nextAttr] = this.adjustCoverage(nextAttr, consumer,
-                                                       source[getValueFromSourceFunctionName](nextAttr),
-                                                       instanceMultiplier,
-                                                       entitlements);
+        var complianceAttributes = getComplianceAttributes(consumer);
+        for (var attrIdx in complianceAttributes) {
+            var nextAttr = complianceAttributes[attrIdx];
+            if (complianceTracker.enforces(nextAttr)) {
+                complianceTracker.setAccumulatedValue(nextAttr, this.adjustCoverage(nextAttr,
+                            consumer,
+                            complianceTracker.getAccumulatedValue(nextAttr),
+                            entitlements));
             }
         }
-        return values;
-    },
-
-    /**
-     * Builds the source data required for checking coverage of a source.
-     */
-    buildSourceData: function(sourceType, sourceId, sourceValues, instanceMultiplier) {
-        return {
-            type: sourceType,
-            id: sourceId,
-            values: sourceValues,
-
-            // Could be none if not set:
-            instanceMultiplier: instanceMultiplier
-
-        };
+        var coverage = this.getCoverageForTracker(complianceTracker, consumer, conditions);
+        log.debug("Stack coverage: " + coverage.percentage);
+        return coverage;
     },
 
     /**
@@ -790,26 +696,28 @@ var CoverageCalculator = {
      *     reasons: The reasons why the source does not cover the consumer.
      *
      *  The supplied conditions are checked to determine coverage. Only
-     *  attribute values defined in ATTRIBUTES_AFFECTING_COVERAGE are checked.
+     *  attribute values defined in getComplianceAttributes() for the given
+     *  consumer are checked.
      *
      *  If an attribute value is not found in the sourceValues, it is considered
      *  to be covered.
      */
-    getCoverageForSource: function (sourceData, consumer, conditions) {
+    getCoverageForTracker: function (complianceTracker, consumer, conditions) {
         var coverageCount = 0;
         var reasons = [];
-        for (var attrIdx in ATTRIBUTES_AFFECTING_COVERAGE) {
-            var attr = ATTRIBUTES_AFFECTING_COVERAGE[attrIdx];
+        var complianceAttributes = getComplianceAttributes(consumer);
+        for (var attrIdx in complianceAttributes) {
+            var attr = complianceAttributes[attrIdx];
 
             // if the value doesn't exist we do not enforce it.
-            if ( !(attr in sourceData.values) ) {
+            if ( !complianceTracker.enforces(attr) ) {
                 coverageCount++;
                 continue;
             }
 
             // Make sure it covers the consumer's values
             var condition = attr in conditions ? conditions[attr] : conditions["default"];
-            var reason = condition(sourceData, attr, consumer);
+            var reason = condition(complianceTracker, attr, consumer);
 
             if (!reason) {
                 coverageCount++;
@@ -818,7 +726,7 @@ var CoverageCalculator = {
             }
         }
 
-        var percentage = coverageCount / ATTRIBUTES_AFFECTING_COVERAGE.length;
+        var percentage = coverageCount / complianceAttributes.length;
         var coverage = {
             covered: percentage == 1,
             percentage: percentage,
@@ -832,7 +740,7 @@ var CoverageCalculator = {
      *  Determines the quantity of entitlements needed from a pool in order
      *  for the stack to cover a consumer.
      */
-    getQuantityToCoverStack : function(stackTracker, pool, consumer, entitlements) {
+    getQuantityToCoverStack : function(complianceTracker, pool, consumer, entitlements) {
         // Check the number required for every attribute
         // and take the max.
 
@@ -840,102 +748,69 @@ var CoverageCalculator = {
         // make the stack valid. Stacking multiple instances of 'arch'
         // does nothing (there is no quantity).
         var stackableAttrsNotAffectingQuantity = [ARCH_ATTRIBUTE, GUEST_LIMIT_ATTRIBUTE];
+        var complianceAttributes = getComplianceAttributes(consumer);
+        var complianceAttributesToUse = [];
+
+        for (var attrIdx in complianceAttributes) {
+            var attr = complianceAttributes[attrIdx];
+            if (!Utils.inArray(stackableAttrsNotAffectingQuantity, attr) && pool.hasProductAttribute(attr)) {
+                complianceAttributesToUse.push(attr);
+            } else {
+                log.debug("  Skipping " + attr + " because it does not affect the quantity or is not enforced");
+            }
+        }
 
         log.debug("Determining number of entitlements to cover consumer...");
 
-        // If the stack is empty, we can assume at least one is needed. This is to
-        // work around situations where the coverage comes back as 100% because no
-        // attributes are being enforced.
-        var maxQuantity = stackTracker.empty ? 1 : 0;
+        var increment = (pool.hasProductAttribute(INSTANCE_ATTRIBUTE) && !Utils.isGuest(consumer)) ? parseInt(pool.getProductAttribute(INSTANCE_ATTRIBUTE)): 1;
 
-        for (var attrIdx in STACKABLE_ATTRIBUTES) {
-            var attr = STACKABLE_ATTRIBUTES[attrIdx];
-
-            // if the attribute does not affect the quantity,
-            // we can skip it.
-            if (Utils.inArray(stackableAttrsNotAffectingQuantity, attr)) {
-                log.debug("  Skipping " + attr + " because it does not affect the quantity.");
-                continue;
+        var covered = false;
+        var quantity = 0;
+        var startedEmpty = complianceTracker.empty;
+        do {
+            if (startedEmpty || quantity != 0) {
+                // If the stack is empty, we can assume at least one is needed. This is to
+                // work around situations where the coverage comes back as 100% because no
+                // attributes are being enforced.
+                complianceTracker.updateAccumulatedFromPool(pool, increment);
+                quantity += increment;
             }
-
-            // No need to check this attr if it
-            // is not being enforced by the stack.
-            if (!stackTracker.enforces(attr)) {
-                log.debug("  Skipping " + attr + " because it is not being enforced.");
-                continue;
+            startedEmpty = true;
+            var coverage = CoverageCalculator.getStackCoverage(complianceTracker, consumer, entitlements);
+            covered = true;
+            for (var i = 0; i < coverage.reasons.length; i++) {
+                var attribute = coverage.reasons[i]["key"].toLowerCase();
+                if (Utils.inArray(complianceAttributesToUse, attribute)) {
+                    covered = false;
+                }
             }
+        // Loop while the stack isn't covered for all the stackable attributes we're checking
+        // and there is enough available quantity for the next iteration
+        } while (!covered && ((quantity + increment <= pool.quantity - pool.consumed) || pool.quantity == -1));
 
-            log.debug("  Checking quantity required for " + attr);
-
-            var prodAttrValue = pool.getProductAttribute(attr);
-            if (!prodAttrValue) {
-                log.debug("  Skipping " + attr + ". Pool does not cover attribute.");
-                continue;
-            }
-            log.debug("    Quantity provided by pool: " + prodAttrValue);
-
-            var currentCovered = stackTracker.getAccumulatedValue(attr);
-            log.debug("    Quantity currently covered by stack: " + currentCovered);
-
-            var consumerQuantity = parseInt(FactValueCalculator.getFact(attr, consumer));
-
-            log.debug("    Quantity to be covered on consumer: " + consumerQuantity);
-
-            // Figure out the max required from the pool to cover
-            // the consumers fact.
-            var amountRequiredFromPool = 0;
-            var coveredCounter = currentCovered;
-            while (CoverageCalculator
-                   .adjustCoverage(attr, consumer, coveredCounter,
-                                   stackTracker.instanceMultiplier,
-                                   entitlements) <
-                                   consumerQuantity) {
-                amountRequiredFromPool++;
-                coveredCounter = currentCovered + (amountRequiredFromPool * prodAttrValue);
-            }
-
-            if (maxQuantity < amountRequiredFromPool) {
-                maxQuantity = amountRequiredFromPool;
-            }
-
-            // Don't try to take more than the pool has available:
-            if (maxQuantity > pool.quantity - pool.consumed && pool.quantity != -1) {
-                maxQuantity = pool.quantity - pool.consumed;
-            }
-
-            // Adjust the suggested quantity if necessary:
-            if (pool.hasProductAttribute("instance_multiplier") && !Utils.isGuest(consumer)) {
-                // Make sure we never recommend something that isn't a multiple of
-                // instance multiplier:
-                maxQuantity = maxQuantity - (maxQuantity % stackTracker.instanceMultiplier);
-            }
-
-        }
-        log.debug("Quantity required to cover consumer: " + maxQuantity);
-        return maxQuantity;
+        log.debug("Quantity required to cover consumer: " + quantity);
+        return quantity;
     }
 };
 
 /**
- *   A stack tracker is an Object that helps to track the state of
- *   stacked entitlements. A stack changes what it provides based
+ *   A compliance tracker is an Object that helps to track the state of
+ *   an entitlement or set of stackable entitlements.
+ *   A stack changes what it provides based
  *   on what entitlements make up the stack. For example, if we have
  *   2 stacked entitlements providing 4 sockets, and we add another
  *   stackable entitlement providing 4GB of RAM, then the stack
- *   will provide 4 sockets and 4GB of ram. A stack tracker tracks
+ *   will provide 4 sockets and 4GB of ram. A compliance tracker tracks
  *   these accumulated values as entitlements are added.
  */
-function createStackTracker(consumer, stackId) {
+function createComplianceTracker(consumer, id) {
     return {
-        stackId: stackId,
+        id: id,
+        type: id == null ? "ENTITLEMENT" : "STACK",
         consumer: consumer,
 
         // The IDs of entitlements that have been added to this tracker.
         entitlementIds: [],
-
-        // Carry the instance multiplier if we detect one when accumulating
-        // values for the stack.
-        instanceMultiplier: null,
 
         // Did we detect a "host restricted" pool anywhere in the stack?
         hostRestricted: null,
@@ -978,16 +853,10 @@ function createStackTracker(consumer, stackId) {
          *  an accumulated value set.
          */
         enforces: function(attribute) {
-            // Guests are not subjected to socket stacking rules for instance based subs:
-            if (attribute == SOCKETS_ATTRIBUTE && this.instanceMultiplier &&
-                Utils.isGuest(this.consumer)) {
-                log.debug("Not enforcing " + attribute + ": guest / instance based sub");
-                return false;
-            }
-
-            // Guests are not subjected to CPU/RAM/Core stacking rules if
-            // using a host-restricted sub-pool:
-            if (this.hostRestricted && Utils.isGuest(this.consumer)) {
+            // Guests are not subjected to Sockets/RAM/Cores/Vcpus limitations if
+            // using a host-restricted sub-pool.
+            if (this.hostRestricted !== null && Utils.isGuest(this.consumer) &&
+                    contains(UNCHECKED_WHEN_HOST_RESTRICTED, attribute)) {
                 log.debug("Not enforcing " + attribute + ": guest / host restricted pool");
                 return false;
             }
@@ -1036,6 +905,15 @@ function createStackTracker(consumer, stackId) {
                     return stackValue;
                 },
 
+                sockets: function (currentStackValue, poolValue, pool, quantity) {
+                    var stackValue = currentStackValue | 0;
+                    var increment = parseInt(pool.getProductAttribute(INSTANCE_ATTRIBUTE)) || 1;
+                    // use lowest quantity evenly divisible by the instance multiplier
+                    var adjustedQuantity = quantity - (quantity % increment);
+                    stackValue = stackValue + ((parseInt(poolValue) * adjustedQuantity) / increment);
+                    return stackValue;
+                },
+
                 guest_limit: function (currentStackValue, poolValue, pool, quantity) {
                     return -1; //Value doesn't matter, just need it to be enforced
                 }
@@ -1059,22 +937,18 @@ function createStackTracker(consumer, stackId) {
          *  to behave as if I gave it x entitlement from the specified pool.
          */
         updateAccumulatedFromPool: function (pool, quantityToTake) {
-            log.debug("Updating stack tracker's values from pool, quantity: " + quantityToTake);
+            log.debug("Updating compliance tracker's values from pool, quantity: " + quantityToTake);
             if (quantityToTake > 0) {
                 this.empty = false;
-            }
-
-            // Store instance multiplier if we spot it:
-            if (pool.getProductAttribute(INSTANCE_ATTRIBUTE)) {
-                this.instanceMultiplier = pool.getProductAttribute(INSTANCE_ATTRIBUTE);
             }
 
             if (pool.getAttribute(REQUIRES_HOST_ATTRIBUTE)) {
                 this.hostRestricted = pool.getAttribute(REQUIRES_HOST_ATTRIBUTE);
             }
 
-            for (var attrIdx in STACKABLE_ATTRIBUTES) {
-                var nextAttr = STACKABLE_ATTRIBUTES[attrIdx];
+            var complianceAttributes = getComplianceAttributes(this.consumer);
+            for (var attrIdx in complianceAttributes) {
+                var nextAttr = complianceAttributes[attrIdx];
                 var poolValue = pool.getProductAttribute(nextAttr);
                 if (poolValue !== null) {
                     var stackValue = this.enforces(nextAttr) ? this.getAccumulatedValue(nextAttr) : null;
@@ -1091,7 +965,10 @@ function createStackTracker(consumer, stackId) {
          *  entitlement. Entitlements that are added can only be added once.
          */
         updateAccumulatedFromEnt: function(ent) {
-            log.debug("Updating stack tracker's values from entitlement.");
+            log.debug("Updating compliance tracker's values from entitlement.");
+            if (this.type == "ENTITLEMENT" && this.entitlementIds.length == 0) {
+                this.id = ent.id;
+            }
             if (ent.id in this.entitlementIds) {
                 // This entitlement was already added.
                 return;
@@ -1102,14 +979,21 @@ function createStackTracker(consumer, stackId) {
             // added to the stack so that our accumulated values do not
             // get out of whack.
             this.entitlementIds.push(ent.id);
-            this.updateAccumulatedFromPool(ent.pool, ent.quantity);
+
+            // If quantity is > 1 but the entitlement is not stacked
+            // only calculate compliance for quantity 1
+            var quantity = ent.quantity;
+            if (!is_stacked(ent) && ent.quantity > 1) {
+                quantity = 1;
+            }
+            this.updateAccumulatedFromPool(ent.pool, quantity);
         }
 
     };
 }
 
 /**
- *  Creates a stack tracker from the specified pool and sets the
+ *  Creates a compliance tracker from the specified pool and sets the
  *  accumulated values of the pool's product attributes and sets
  *  them to empty. This is useful for Autobind in a situation where
  *  it comes across a stackable pool, but there are no entitlements
@@ -1118,15 +1002,15 @@ function createStackTracker(consumer, stackId) {
  *  many entitlements from this pool have to be stacked in order
  *  to cover the consumer.
  */
-function createStackTrackerFromPool(pool, consumer) {
-    var stackTracker = createStackTracker(consumer, pool.getProductAttribute("stacking_id"));
+function createComplianceTrackerFromPool(pool, consumer) {
+    var complianceTracker = createComplianceTracker(consumer, pool.getProductAttribute("stacking_id"));
     // There are no entitlements for this stack, but
     // we have to tell the stack what attributes it must
     // enforce. This is determined by attributes that are
     // set on the pool. Because there are no entitlements
     // we set the quantity to 0.
-    stackTracker.updateAccumulatedFromPool(pool, 0);
-    return stackTracker;
+    complianceTracker.updateAccumulatedFromPool(pool, 0);
+    return complianceTracker;
 }
 
 
@@ -1191,7 +1075,8 @@ var Entitlement = {
             "virt_limit:1:virt_limit," +
             "requires_host:1:requires_host," +
             "instance_multiplier:1:instance_multiplier," +
-            "guest_limit:1:guest_limit";
+            "guest_limit:1:guest_limit," +
+            "vcpu:1:vcpu";
     },
 
     ValidationResult: function () {
@@ -1323,6 +1208,31 @@ var Entitlement = {
     pre_guest_limit: function() {
     },
 
+    pre_vcpu: function() {
+        var result = Entitlement.ValidationResult();
+        context = Entitlement.get_attribute_context();
+
+        var consumer = context.consumer;
+        var pool = context.pool;
+        var caller = context.caller;
+
+        if (!consumer.type.manifest) {
+            if (Utils.isGuest(consumer)) {
+                var consumerCores = FactValueCalculator.getFact(VCPU_ATTRIBUTE, consumer);
+                if (consumerCores && !pool.getProductAttribute("stacking_id")) {
+                    var poolCores = parseInt(pool.getProductAttribute(VCPU_ATTRIBUTE));
+                    if (poolCores > 0 && poolCores < consumerCores) {
+                        result.addWarning("rulewarning.unsupported.number.of.vcpus");
+                    }
+                }
+            }
+        }
+        // Don't check if the manifest consumer is capable,
+        // this attribute has existed for a while
+        // now, we have just never checked it before
+        return JSON.stringify(result);
+    },
+
     pre_architecture: function() {
         var result = Entitlement.ValidationResult();
         context = Entitlement.get_attribute_context();
@@ -1345,7 +1255,7 @@ var Entitlement = {
         var consumer = context.consumer;
         var pool = context.pool;
 
-        if (consumer.type.manifest) {
+        if (consumer.type.manifest || Utils.isGuest(consumer)) {
             return JSON.stringify(result);
         }
 
@@ -1369,11 +1279,13 @@ var Entitlement = {
         var caller = context.caller;
 
         if (!consumer.type.manifest) {
-            var consumerCores = FactValueCalculator.getFact(CORES_ATTRIBUTE, consumer);
-            if (consumerCores && !pool.getProductAttribute("stacking_id")) {
-                var poolCores = parseInt(pool.getProductAttribute(CORES_ATTRIBUTE));
-                if (poolCores > 0 && poolCores < consumerCores) {
-                    result.addWarning("rulewarning.unsupported.number.of.cores");
+            if (!Utils.isGuest(consumer)) {
+                var consumerCores = FactValueCalculator.getFact(CORES_ATTRIBUTE, consumer);
+                if (consumerCores && !pool.getProductAttribute("stacking_id")) {
+                    var poolCores = parseInt(pool.getProductAttribute(CORES_ATTRIBUTE));
+                    if (poolCores > 0 && poolCores < consumerCores) {
+                        result.addWarning("rulewarning.unsupported.number.of.cores");
+                    }
                 }
             }
         }
@@ -1487,12 +1399,11 @@ var Entitlement = {
             return JSON.stringify(result);
         }
 
-        var isMultiEntitlement = pool.getProductAttribute("multi-entitlement");
-        if (context.hasEntitlement(pool.id) && isMultiEntitlement != "yes") {
+        if (context.hasEntitlement(pool.id) && !Utils.isMultiEnt(pool)) {
             result.addError("rulefailed.consumer.already.has.product");
         }
 
-        if (context.quantity > 1 && isMultiEntitlement != "yes") {
+        if (context.quantity > 1 && !Utils.isMultiEnt(pool)) {
             result.addError("rulefailed.pool.does.not.support.multi-entitlement");
         }
 
@@ -1538,7 +1449,7 @@ var Autobind = {
                     return false;
                 }
 
-                if (!this.stackable && CoverageCalculator.getEntitlementCoverage(all_ents[0], this.consumer, all_ents).covered) {
+                if (!this.stackable && Compliance.getEntitlementCoverage(this.consumer, all_ents[0], all_ents).covered) {
                     return true;
                 }
                 else if (!this.stackable) {
@@ -1632,8 +1543,9 @@ var Autobind = {
             get_attribute_sets: function(pools) {
                 var stack_attributes = [];
                 // get unique list of additive stack attributes
-                for (var attrIdx in STACKABLE_ATTRIBUTES) {
-                    var attr = STACKABLE_ATTRIBUTES[attrIdx];
+                var complianceAttributes = getComplianceAttributes(this.consumer);
+                for (var attrIdx in complianceAttributes) {
+                    var attr = complianceAttributes[attrIdx];
                     if (attr != ARCH_ATTRIBUTE) {
                         // Only check attributes that the pools actually use
                         for (var poolIdx = 0; poolIdx < pools.length; poolIdx++) {
@@ -1801,7 +1713,7 @@ var Autobind = {
                                 break;
                             }
                         } else {
-                            if (CoverageCalculator.getEntitlementCoverage(current_ent, this.consumer, ents.concat(this.attached_ents)).covered) {
+                            if (Compliance.getEntitlementCoverage(this.consumer, current_ent, ents.concat(this.attached_ents)).covered) {
                                 result.put(pool.id, j);
                                 break;
                             }
@@ -1881,7 +1793,7 @@ var Autobind = {
                 pool.currently_available = pool.quantity - pool.consumed;
             }
             // If the pool is not multi-entitlable, only one may be used
-            if (pool.currently_available > 0 && !Quantity.allows_multi_entitlement(pool)) {
+            if (pool.currently_available > 0 && !Utils.isMultiEnt(pool)) {
                 pool.currently_available = 1;
             }
         }
@@ -2255,7 +2167,6 @@ var Compliance = {
         if ("entitlement" in context) {
             context.entitlement.pool = createPool(context.entitlement.pool);
         }
-
         return context;
     },
 
@@ -2286,10 +2197,8 @@ var Compliance = {
     },
 
     is_ent_compliant: function () {
-        // TODO MS: Look into whether or not we will ever need
-        //      to enrich Installed Product data with reasons.
         var context = Compliance.get_status_context();
-        var coverage = CoverageCalculator.getEntitlementCoverage(context.entitlement, context.consumer, context.entitlements);
+        var coverage = Compliance.getEntitlementCoverage(context.consumer, context.entitlement, context.entitlements);
         return coverage.covered;
     },
 
@@ -2308,19 +2217,13 @@ var Compliance = {
     },
 
     getSortedEndDates: function(entitlements) {
-        var sorter = function(date1, date2) {
-            var e1End = new Date(e1.endDate);
-            var e2End = new Date(e2.endDate);
-            return Utils.date_compare(e1End, e2End);
-        };
-
         var dates = [];
         for (var k = 0; k < entitlements.length; k++) {
             var ent = entitlements[k];
 
             dates.push(new Date(ent.endDate));
         }
-        dates.sort(function(d1, d2) { Utils.date_compare(d1, d2) });
+        dates.sort(function(d1, d2) { return Utils.date_compare(d1, d2) });
         return dates;
     },
 
@@ -2442,7 +2345,7 @@ var Compliance = {
             // If we have no installed products and the entitlement
             // is partially covered, we want the system to be partial.
             if (relevant_pids.length == 0 && !ent_is_stacked) {
-                var entCoverage = CoverageCalculator.getEntitlementCoverage(e, consumer, entitlementsOnDate);
+                var entCoverage = Compliance.getEntitlementCoverage(consumer, e, entitlementsOnDate);
                 if (!entCoverage.covered) {
                     compStatus.add_reasons(entCoverage.reasons);
                 }
@@ -2456,7 +2359,7 @@ var Compliance = {
                     continue;
                 }
 
-                var entCoverage = CoverageCalculator.getEntitlementCoverage(e, consumer, entitlementsOnDate);
+                var entCoverage = Compliance.getEntitlementCoverage(consumer, e, entitlementsOnDate);
                 if (!entCoverage.covered && !ent_is_stacked) {
                     log.debug("    partially compliant (non-stacked): " + relevant_pid);
                     compStatus.add_partial_product(relevant_pid, e);
@@ -2502,19 +2405,43 @@ var Compliance = {
      * and entitlements.
      */
     determineCompliantUntilDate: function(consumer, entitlements, startDate, log) {
-        var initialEntitlements = Compliance.filterEntitlementsByDate(entitlements, startDate);
+        var installedProducts = [];
+        if (consumer.installedProducts === null || consumer.installedProducts.length == 0) {
+            return null;
+        }
+
+        for (var i = 0; i < consumer.installedProducts.length; i++) {
+            var productId =  consumer.installedProducts[i].productId;
+            installedProducts.push(productId);
+        }
+
+        // TODO: pull out all entitlements that provide or
+        // stack with entitlements that provide installed products.
+        // For now I don't think that's necessary
+        var entitlementsProvidingProducts = [];
+        for (var i = 0; i < entitlements.length; i++) {
+            var ent = entitlements[i];
+            for (var j = 0; j < installedProducts.length; j++) {
+                var productId = installedProducts[j];
+                if (ent.pool.provides(productId)) {
+                    entitlementsProvidingProducts.push(ent);
+                    break;
+                }
+            }
+        }
 
         // Get all end dates from current entitlements sorted ascending.
-        var dates = Compliance.getSortedEndDates(initialEntitlements);
+        var dates = Compliance.getSortedEndDates(entitlementsProvidingProducts);
 
+        var lastDate = startDate;
         for (var k = 0; k < dates.length; k++) {
             var dateToCheck = dates[k];
 
-
-            // Ignore past dates.
-            if (dateToCheck < startDate) {
+            // Ignore past dates and duplicates
+            if (Utils.date_compare(dateToCheck, lastDate) != 1) {
                 continue;
             }
+            lastDate = dateToCheck;
 
             // Need to check if we are still compliant after the end date,
             // so we add one second.
@@ -2535,18 +2462,25 @@ var Compliance = {
      */
     getStackCoverage: function(consumer, stack_id, ents) {
         log.debug("Checking stack compliance for: " + stack_id);
-        var stackTracker = createStackTracker(consumer, stack_id);
+        var complianceTracker = createComplianceTracker(consumer, stack_id);
         for (var k = 0; k < ents.length; k++) {
             var ent = ents[k];
 
             if (is_stacked(ent)) {
                 var currentStackId = ent.pool.getProductAttribute("stacking_id");
                 if (currentStackId == stack_id) {
-                    stackTracker.updateAccumulatedFromEnt(ent);
+                    complianceTracker.updateAccumulatedFromEnt(ent);
                 }
             }
         }
-        return CoverageCalculator.getStackCoverage(stackTracker, consumer, ents);
+        return CoverageCalculator.getStackCoverage(complianceTracker, consumer, ents);
+    },
+
+    getEntitlementCoverage: function(consumer, entitlement, ents) {
+        log.debug("Checking compliance for entitlement: " + entitlement.id);
+        var complianceTracker = createComplianceTracker(consumer, null);
+        complianceTracker.updateAccumulatedFromEnt(entitlement);
+        return CoverageCalculator.getStackCoverage(complianceTracker, consumer, ents);
     }
 }
 
@@ -2575,21 +2509,21 @@ var Quantity = {
         };
 
         // Distributors increment is always 1, suggested is irrelevant
-        if (!Quantity.allows_multi_entitlement(pool) || consumer.type.manifest) {
+        if (!Utils.isMultiEnt(pool) || consumer.type.manifest) {
             return JSON.stringify(result);
         }
 
         if (pool.hasProductAttribute("stacking_id")) {
-            var stackTracker = createStackTrackerFromPool(pool, consumer);
+            var complianceTracker = createComplianceTrackerFromPool(pool, consumer);
 
             for (var j = 0; j < validEntitlements.length; j++) {
                 var ent = validEntitlements[j];
                 if (ent.pool.hasProductAttribute("stacking_id") &&
                         ent.pool.getProductAttribute("stacking_id") == pool.getProductAttribute("stacking_id")) {
-                    stackTracker.updateAccumulatedFromEnt(ent);
+                    complianceTracker.updateAccumulatedFromEnt(ent);
                 }
             }
-            result.suggested = CoverageCalculator.getQuantityToCoverStack(stackTracker, pool, consumer, validEntitlements);
+            result.suggested = CoverageCalculator.getQuantityToCoverStack(complianceTracker, pool, consumer, validEntitlements);
         }
         else {
             result.suggested = 1;
@@ -2603,16 +2537,10 @@ var Quantity = {
         return JSON.stringify(result);
     },
 
-    allows_multi_entitlement: function(pool) {
-        return pool.hasProductAttribute("multi-entitlement") &&
-            Utils.equalsIgnoreCase(pool.getProductAttribute("multi-entitlement"),
-            "yes");
-    },
-
     get_suggested_pool_quantity: function(pool, consumer, entitlements) {
-        if (Quantity.allows_multi_entitlement(pool) && pool.hasProductAttribute("stacking_id")) {
-            var stackTracker = createStackTrackerFromPool(pool, consumer);
-            return CoverageCalculator.getQuantityToCoverStack(stackTracker, pool, consumer, entitlements);
+        if (Utils.isMultiEnt(pool) && pool.hasProductAttribute("stacking_id")) {
+            var complianceTracker = createComplianceTrackerFromPool(pool, consumer);
+            return CoverageCalculator.getQuantityToCoverStack(complianceTracker, pool, consumer, entitlements);
         }
         return 1;
     }
@@ -2638,7 +2566,7 @@ var PoolType = {
      */
     get_arg_pool_type: function(pool) {
         var hasStacking = pool.hasProductAttribute("stacking_id");
-        var multiEnt = Quantity.allows_multi_entitlement(pool);
+        var multiEnt = Utils.isMultiEnt(pool);
         var isInstanceBased = pool.hasProductAttribute(INSTANCE_ATTRIBUTE);
         if (isInstanceBased) {
             if (multiEnt && hasStacking) {
@@ -2686,7 +2614,9 @@ var Override = {
     get_allow_override: function() {
         var blacklist = ['name','label','baseurl']
         var context = Override.get_override_context();
-        return Utils.inArray(blacklist, context.name);
+        
+        var check = context.name ? context.name.toLowerCase() : "";
+        return Utils.inArray(blacklist, check);
     }
 }
 
@@ -2798,13 +2728,13 @@ var Utils = {
     },
 
     isGuest: function(consumer) {
-        if (!consumer.facts['virt.is_guest']) {
+        if (consumer === null || consumer.facts === null || !consumer.facts[IS_VIRT_GUEST_FACT]) {
             return false;
         }
 
-        log.debug(consumer.facts['virt.is_guest']);
-        log.debug("is guest? " + Utils.equalsIgnoreCase('true', consumer.facts['virt.is_guest']));
-        return Utils.equalsIgnoreCase('true', consumer.facts['virt.is_guest']);
+        log.debug(consumer.facts[IS_VIRT_GUEST_FACT]);
+        log.debug("is guest? " + Utils.equalsIgnoreCase('true', consumer.facts[IS_VIRT_GUEST_FACT]));
+        return Utils.equalsIgnoreCase('true', consumer.facts[IS_VIRT_GUEST_FACT]);
     },
 
     isCapable: function(consumer, capability) {
@@ -2818,5 +2748,9 @@ var Utils = {
             }
         }
         return isCapable;
+    },
+
+    isMultiEnt: function(pool) {
+        return Utils.equalsIgnoreCase(pool.getProductAttribute(MULTI_ENTITLEMENT_ATTRIBUTE), "yes");
     }
 }

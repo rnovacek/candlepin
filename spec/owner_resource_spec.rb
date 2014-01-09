@@ -74,6 +74,23 @@ describe 'Owner Resource' do
     (pools[0].id <=> pools[1].id).should == -1
   end
 
+  it "lets owners list pools in pages for a consumer" do
+    owner = create_owner random_string("test_owner1")
+    user = user_client(owner, random_string("bob"))
+    system = consumer_client(user, "system")
+    product = create_product
+    (1..4).each do |i|
+      @cp.create_subscription(owner['key'], product.id, 10)
+    end
+    @cp.refresh_pools(owner['key'])
+    # Make sure there are 4 available pools
+    @cp.list_owner_pools(owner['key'], {:consumer => system.uuid}).length.should == 4
+    # Get page 2, per bz 1038273
+    pools = @cp.list_owner_pools(owner['key'], {:page => 2, :per_page => 2, :sort_by => "id", :order => "asc", :consumer => system.uuid})
+    pools.length.should == 2
+    (pools[0].id <=> pools[1].id).should == -1
+  end
+
   it "lets owners be created and refreshed at the same time" do
     owner_key = random_string("new_owner1")
     @cp.refresh_pools(owner_key, false, true)
@@ -361,6 +378,51 @@ describe 'Owner Resource' do
     found.length.should == 2
     found.delete("hypervisor").should_not be_nil
     found.delete("candlepin").should_not be_nil
+  end
+  
+end
+
+describe 'Owner Resource Pool Filter Tests' do
+
+  include CandlepinMethods
+  
+  before(:each) do
+    @owner = create_owner(random_string("test_owner"))
+    @product1 = create_product(random_string("prod-1"),
+      random_string("Product1"),
+      {
+        :attributes => {:support_level => 'VIP'}
+      }
+    )
+    
+    @product2 = create_product(random_string("prod-2"),
+      random_string("Product2"),
+      {
+        :attributes => {
+            :support_level => 'Supurb',
+            :cores => '4'
+        }
+      }
+    )
+
+    @cp.create_subscription(@owner['key'], @product1.id, 10)
+    @cp.create_subscription(@owner['key'], @product2.id, 10)
+    
+    @cp.refresh_pools(@owner['key'])
+    pools = @cp.list_owner_pools(@owner['key'])
+    pools.length.should == 2
+  end
+  
+  it "lets owners filter pools by single filter" do
+    pools = @cp.list_owner_pools(@owner['key'], {}, ["support_level:VIP"])
+    pools.length.should == 1
+    pools[0].productId.should == @product1.id
+  end
+  
+  it "lets owners filter pools by multiple filter" do
+    pools = @cp.list_owner_pools(@owner['key'], {}, ["support_level:Supurb", "cores:4"])
+    pools.length.should == 1
+    pools[0].productId.should == @product2.id
   end
   
 end

@@ -496,7 +496,8 @@
             "name": "Clustering Bits",
             "id": "37065",
             "attributes": {
-                    "sockets": 2
+                    "sockets": 2,
+                    "vcpu": 4
             },
             "content": []
         },
@@ -505,6 +506,7 @@
             "id": "37070",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30
             },
             "content": []
@@ -514,6 +516,7 @@
             "id": "37067",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30
             },
             "content": []
@@ -523,6 +526,7 @@
             "id": "37068",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30
             },
             "content": []
@@ -532,6 +536,7 @@
             "id": "37069",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30
             },
             "content": [
@@ -541,7 +546,8 @@
             "name": "Shared File System Bits",
             "id": "88888",
             "attributes": {
-                "sockets": 1
+                "sockets": 1,
+                "vcpu": 2
             },
             "content": []
         },
@@ -551,6 +557,7 @@
             "version": "6.1",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -568,6 +575,7 @@
             "version": "6.1",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30
             },
             "content": [
@@ -579,6 +587,7 @@
             "version": "6.1",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -596,6 +605,7 @@
             "version": "6.1",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "brand_type": "OS"
 
@@ -635,6 +645,7 @@
             ],
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "management_enabled" : 1,
                 "support_level" : "Premium",
@@ -652,6 +663,7 @@
             ],
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "management_enabled" : 0,
                 "support_level" : "None",
@@ -668,6 +680,7 @@
             "skip_subs" : "true",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "cores": 4,
                 "ram": 2,
                 "support_level": "Full-Service",
@@ -683,6 +696,7 @@
             ],
             "attributes": {
                 "sockets": 4,
+                "vcpu": 8,
                 "warning_period": 30,
                 "management_enabled" : 0,
                 "support_level" : "None",
@@ -705,6 +719,7 @@
             ],
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "management_enabled" : 0,
                 "support_level" : "None",
@@ -722,6 +737,7 @@
             ],
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "management_enabled" : 0,
                 "support_level" : "Standard",
@@ -752,6 +768,7 @@
             ],
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30,
                 "management_enabled" : 1,
                 "support_level" : "Standard",
@@ -777,6 +794,24 @@
             }
         },
         {
+            "name": "Awesome OS Instance Based one socket",
+            "id": "awesomeos-onesocketib",
+            "type": "MKT",
+            "provided_products": [
+                "32060"
+            ],
+            "attributes": {
+                "instance_multiplier": 2,
+                "sockets": 1,
+                "virt_limit": 1,
+                "host_limited": "true",
+                "stacking_id": 15,
+                "multi-entitlement": "yes",
+                "support_level" : "Standard",
+                "support_type" : "L1-L3"
+            }
+        },
+        {
             "name": "Awesome OS Premium Architecture Bits",
             "id": "37062",
             "version": "6.1",
@@ -786,6 +821,7 @@
             ],
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "warning_period": 30
             },
             "content": [
@@ -799,6 +835,7 @@
             "arch": "s390x",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -819,6 +856,7 @@
             ],
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30
             }
         },
@@ -829,6 +867,7 @@
             "arch": "s390",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -849,6 +888,7 @@
             ],
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30
             }
         },
@@ -859,6 +899,7 @@
             "arch": "i386",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -879,6 +920,7 @@
             ],
             "attributes": {
                 "sockets": 16,
+                "vcpu": 32,
                 "warning_period": 30
             }
         },
@@ -889,6 +931,7 @@
             "arch": "i386",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "virt_only": "true",
                 "brand_type": "OS"
@@ -910,6 +953,7 @@
             ],
             "attributes": {
                 "sockets": 16,
+                "vcpu": 32,
                 "warning_period": 30,
                 "virt_only": "true"
             }
@@ -921,6 +965,7 @@
             "arch": "i686",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -941,6 +986,7 @@
             ],
             "attributes": {
                 "sockets": 16,
+                "vcpu": 32,
                 "warning_period": 30
             }
         },
@@ -951,6 +997,7 @@
             "arch": "x86_64",
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes",
@@ -973,6 +1020,7 @@
             ],
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes"
@@ -985,6 +1033,7 @@
             "arch": "ALL",
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes",
@@ -1009,6 +1058,7 @@
             ],
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes"
@@ -1021,6 +1071,7 @@
             "arch": "ALL",
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes",
@@ -1046,6 +1097,7 @@
             ],
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes"
@@ -1059,6 +1111,7 @@
             "arch": "ALL",
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes",
@@ -1080,6 +1133,7 @@
             ],
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes"
@@ -1092,6 +1146,7 @@
             "arch": "ALL",
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes",
@@ -1113,6 +1168,7 @@
             ],
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1,
                 "multi-entitlement": "yes"
@@ -1125,6 +1181,7 @@
             "arch": "x86_64",
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1
             },
@@ -1145,6 +1202,7 @@
             ],
             "attributes": {
                 "sockets": 1,
+                "vcpu": 2,
                 "warning_period": 30,
                 "stacking_id": 1
             }
@@ -1156,6 +1214,7 @@
             "arch": "ia64",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "stacking_id": 2,
                 "multi-entitlement": "yes",
@@ -1178,6 +1237,7 @@
             ],
             "attributes": {
                 "sockets": 16,
+                "vcpu": 32,
                 "warning_period": 30,
                 "stacking_id": 2,
                 "multi-entitlement": "yes"
@@ -1190,6 +1250,7 @@
             "arch": "ppc64",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -1210,6 +1271,7 @@
             ],
             "attributes": {
                 "sockets": 16,
+                "vcpu": 32,
                 "warning_period": 30
             }
         },
@@ -1220,6 +1282,7 @@
             "arch": "x86",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -1240,6 +1303,7 @@
             ],
             "attributes": {
                 "sockets": 16,
+                "vcpu": 32,
                 "warning_period": 30
             }
         },
@@ -1250,6 +1314,7 @@
             "arch": "x86_64,i686,ia64,ppc,ppc64,s390x,s390",
             "attributes": {
                 "sockets": 128,
+                "vcpu": 256,
                 "warning_period": 30,
                 "brand_type": "OS"
             },
@@ -1276,6 +1341,7 @@
             ],
             "attributes": {
                 "sockets": 16,
+                "vcpu": 32,
                 "warning_period": 30
             }
         },
@@ -1502,6 +1568,7 @@
             "type": "MKT",
             "attributes": {
                 "sockets": 2,
+                "vcpu": 4,
                 "multi-entitlement": "yes",
                 "stacking_id": "multiattr-stack-test",
                 "support_level" : "Premium",
@@ -1565,6 +1632,7 @@
                 "sockets": 4,
                 "ram": 8,
                 "cores": 16,
+                "vcpu": 8,
                 "multi-entitlement": "yes",
                 "stacking_id": "multiattr-stack-test",
                 "support_level" : "Super",
@@ -1596,6 +1664,7 @@
                 "sockets": 6,
                 "ram": 8,
                 "cores": 24,
+                "vcpu": 12,
                 "support_level" : "Super",
                 "support_type" : "Level 3"
             },

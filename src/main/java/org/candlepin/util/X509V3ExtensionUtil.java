@@ -30,13 +30,13 @@ import org.candlepin.model.ProductContent;
 import org.candlepin.pki.X509ByteExtensionWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Collections2;
 import com.google.inject.Inject;
 
-import org.codehaus.jackson.annotate.JsonAutoDetect.Visibility;
-import org.codehaus.jackson.annotate.JsonMethod;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.annotate.JsonSerialize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.zip.Deflater;
@@ -623,9 +624,10 @@ public class X509V3ExtensionUtil extends X509Util{
         Map<String, Integer> segments =  new HashMap<String, Integer>();
         Set<PathNode> nodes =  new HashSet<PathNode>();
         buildSegments(segments, nodes, parent);
-        for (String part : segments.keySet()) {
+        for (Entry<String, Integer> entry : segments.entrySet()) {
+            String part = entry.getKey();
             if (!part.equals("")) {
-                int count = segments.get(part);
+                int count = entry.getValue();
                 if (parts.size() == 0) {
                     parts.add(part);
                 }
@@ -806,8 +808,8 @@ public class X509V3ExtensionUtil extends X509Util{
     public static String toJson(Object anObject) {
         String output = "";
         ObjectMapper mapper = new ObjectMapper();
-        mapper.setSerializationInclusion(JsonSerialize.Inclusion.NON_NULL);
-        mapper.setVisibility(JsonMethod.FIELD, Visibility.ANY);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
         try {
             output = mapper.writeValueAsString(anObject);
         }
@@ -1039,6 +1041,10 @@ public class X509V3ExtensionUtil extends X509Util{
     }
 
     private void makeURLs(PathNode root, List<String> urls, StringBuffer aPath) {
+        if (root == null) {
+            // if no PathNode, we just bail. No need to cause an NPE.
+            return;
+        }
         if (root.getChildren().size() == 0) {
             urls.add(aPath.toString());
         }
