@@ -17,14 +17,23 @@ package org.candlepin.pki.impl;
 import com.google.inject.Inject;
 
 import org.apache.commons.codec.binary.Base64;
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1EncodableVector;
 import org.bouncycastle.asn1.ASN1InputStream;
 import org.bouncycastle.asn1.ASN1Object;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DERInteger;
+import org.bouncycastle.asn1.DERObject;
 import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.DERTaggedObject;
 import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.CRLReason;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.X509Extensions;
+import org.bouncycastle.jce.PrincipalUtil;
 import org.bouncycastle.x509.X509V2CRLGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.candlepin.pki.PKIReader;
@@ -42,6 +51,7 @@ import org.mozilla.jss.asn1.InvalidBERException;
 import org.mozilla.jss.asn1.OBJECT_IDENTIFIER;
 import org.mozilla.jss.asn1.OCTET_STRING;
 import org.mozilla.jss.asn1.SEQUENCE;
+import org.mozilla.jss.asn1.Tag;
 import org.mozilla.jss.asn1.UTF8String;
 import org.mozilla.jss.crypto.SignatureAlgorithm;
 import org.mozilla.jss.crypto.TokenException;
@@ -169,23 +179,7 @@ public class JSSPKIUtility extends PKIUtility {
             this.addExtension(cInfo, NETSCAPE_CERT_TYPE_OID, false, certType);
 
             setSubjectKeyIdentifier(clientKeyPair, cInfo);
-
-            // The authors key identifier is a sequence, with the first being the
-            // sha1 of the ca key, and then the issuer, then the serial number
-            // TODO: not coming out the same as the old bounceycastle code
-//            SEQUENCE authKeySeq = new SEQUENCE();
-//            authKeySeq.addElement(new Tag(0), subjectKeyString);
-//            authKeySeq.addElement(new Tag(1), issuer);
-//            authKeySeq.addElement(new Tag(2), new INTEGER(caCert.getSerialNumber()));
-//
-//            this.addExtension(cInfo, AUTHORITY_KEY_IDENTIFIER_OID, false, authKeySeq);
-
-/*
-            certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false,
-                new AuthorityKeyIdentifierStructure(caCert));
-            certGen.addExtension(X509Extensions.SubjectKeyIdentifier, false,
-                  subjectKeyWriter.getSubjectKeyIdentifier(clientKeyPair, extensions));
-*/
+            setAuthorityKeyIdentifier(cInfo, issuer, caCert);
 
             // Add Extended Key Usage
             SEQUENCE seq = new SEQUENCE();
@@ -229,6 +223,66 @@ public class JSSPKIUtility extends PKIUtility {
         }
     }
 
+    private void setAuthorityKeyIdentifier(CertificateInfo cInfo,
+        Name issuer, X509Certificate caCert)
+        throws CertificateException, IOException {
+        // The authors key identifier is a sequence, with the first being the
+        // sha1 of the ca key, and then the issuer, then the serial number
+        // TODO: not coming out the same as the old bouncycastle code
+
+        byte [] subjectKeyIdentifier = getPublicKeyHash(caCert.getPublicKey());
+
+        DEROctetString ski = new DEROctetString(subjectKeyIdentifier);
+        GeneralName genName = new GeneralName(PrincipalUtil.getIssuerX509Principal(caCert));
+        GeneralNames certissuer = new GeneralNames(genName); // TODO: why three times?
+        certissuer = GeneralNames.getInstance(certissuer.toASN1Object());
+        DERInteger certserno = new DERInteger(caCert.getSerialNumber());
+        ASN1EncodableVector  v = new ASN1EncodableVector();
+        if (ski != null)
+        {
+            v.add(new DERTaggedObject(false, 0, ski));
+        }
+
+        if (certissuer != null)
+        {
+            v.add(new DERTaggedObject(false, 1, certissuer));
+        }
+
+        if (certserno != null)
+        {
+            v.add(new DERTaggedObject(false, 2, certserno));
+        }
+        DERSequence seq = new DERSequence(v);
+        DERObject asn1 = seq.toASN1Object();
+
+
+        SEQUENCE authKeySeq = new SEQUENCE();
+        // TODO: try simplifying this one, I think it was right without the encode:
+        authKeySeq.addElement(new Tag(0),
+            new OCTET_STRING(ASN1Util.encode(new OCTET_STRING(subjectKeyIdentifier))));
+        authKeySeq.addElement(new Tag(1), new OCTET_STRING(
+            certissuer.toASN1Object().getEncoded(ASN1Encodable.DER)));
+        authKeySeq.addElement(new Tag(2), new INTEGER(caCert.getSerialNumber()));
+
+//        this.addExtension(cInfo, AUTHORITY_KEY_IDENTIFIER_OID, false,
+//            authKeySeq);
+
+        Extension ext = new Extension(
+            new OBJECT_IDENTIFIER(AUTHORITY_KEY_IDENTIFIER_OID),
+            false,
+            new OCTET_STRING(asn1.getDEREncoded()));
+        cInfo.addExtension(ext);
+
+//            new OCTET_STRING(asn1.getDERObject().getEncoded(ASN1Encodable.DER)));
+
+/*
+        certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false,
+            new AuthorityKeyIdentifierStructure(caCert));
+        certGen.addExtension(X509Extensions.SubjectKeyIdentifier, false,
+              subjectKeyWriter.getSubjectKeyIdentifier(clientKeyPair, extensions));
+*/
+    }
+
     /*
      * Adds the subject key identifier extension. This is a SHA1 of the subject's DER
      * encoded public key.
@@ -246,6 +300,17 @@ public class JSSPKIUtility extends PKIUtility {
 
         // This code roughly follows what bouncycastle does behind the scenes in it's
         // SubjectKeyIdentifierStructure class.
+        byte[] keyData = null;
+
+        keyData = getPublicKeyHash(pubKey);
+
+        OCTET_STRING subjectKeyString = new OCTET_STRING(keyData);
+        this.addExtension(cInfo, SUBJECT_KEY_IDENTIFIER_OID, false, subjectKeyString);
+
+    }
+
+    private byte[] getPublicKeyHash(PublicKey pubKey) throws IOException {
+        byte[] keyData;
         ASN1InputStream aIn = null;
         try {
             aIn = new ASN1InputStream(pubKey.getEncoded());
@@ -257,17 +322,16 @@ public class JSSPKIUtility extends PKIUtility {
                 org.bouncycastle.asn1.x509.AlgorithmIdentifier.getInstance(e.nextElement());
             DERBitString derKeyData = DERBitString.getInstance(e.nextElement());
 
-            byte[] keyData = derKeyData.getBytes();
+            keyData = derKeyData.getBytes();
 
             // Calculate the SHA1 hash using JSS:
             keyData = this.sha1Digest(keyData);
-            OCTET_STRING subjectKeyString = new OCTET_STRING(keyData);
 
-            this.addExtension(cInfo, SUBJECT_KEY_IDENTIFIER_OID, false, subjectKeyString);
         }
         finally {
             aIn.close();
         }
+        return keyData;
     }
 
     protected void addExtension(CertificateInfo cInfo, String oid,
