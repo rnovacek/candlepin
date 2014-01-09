@@ -27,7 +27,7 @@ public class JSSPKIUtilityTest {
 
     @Test
     public void readkey() throws Exception {
-        JSSPKIUtility util = new JSSPKIUtility(null, null);
+        JSSPKIUtility util = new JSSPKIUtility(null);
         Name result = util.parseDN("CN=JarJar, OU=Binks");
         assertEquals("Name parsing is not correct", "OU=Binks, CN=JarJar",
             result.getRFC1485());
