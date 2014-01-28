@@ -23,6 +23,7 @@ import java.util.Date;
 public class X509CRLEntryWrapper {
     private BigInteger serialNumber;
     private Date revocationDate;
+    private String subject;
 
     /**
      * Instantiates a new simple crl entry.
@@ -33,6 +34,7 @@ public class X509CRLEntryWrapper {
     public X509CRLEntryWrapper(BigInteger serialNumber, Date revocationDate) {
         this.serialNumber = serialNumber;
         this.revocationDate = revocationDate;
+        this.subject = "none"; // do we care about the subject for recovation?
     }
 
     public BigInteger getSerialNumber() {
@@ -41,5 +43,9 @@ public class X509CRLEntryWrapper {
 
     public Date getRevocationDate() {
         return this.revocationDate;
+    }
+
+    public String getSubject() {
+        return subject;
     }
 }

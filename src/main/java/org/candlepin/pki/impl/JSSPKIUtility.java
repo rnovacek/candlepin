@@ -27,14 +27,12 @@ import org.bouncycastle.asn1.DERObject;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERTaggedObject;
-import org.bouncycastle.asn1.x509.CRLNumber;
-import org.bouncycastle.asn1.x509.CRLReason;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.jce.PrincipalUtil;
-import org.bouncycastle.x509.X509V2CRLGenerator;
-import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
+import org.candlepin.config.Config;
+import org.candlepin.config.ConfigProperties;
+import org.candlepin.exceptions.IseException;
 import org.candlepin.pki.PKIReader;
 import org.candlepin.pki.PKIUtility;
 import org.candlepin.pki.X509ByteExtensionWrapper;
@@ -65,7 +63,9 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.CharConversionException;
+import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -82,6 +82,7 @@ import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.Formatter;
 import java.util.List;
 import java.util.Set;
 
@@ -134,10 +135,22 @@ public class JSSPKIUtility extends PKIUtility {
     public static final String EXTENDED_KEY_USAGE_OID = "2.5.29.37";
     public static final String NETSCAPE_CERT_TYPE_OID = "2.16.840.1.113730.1.1";
 
-    @Inject
-    public JSSPKIUtility(PKIReader reader) {
+    private static final String OPENSSL_INDEX_FILENAME = "certindex";
 
+    private final File baseDir;
+    private Config config;
+
+    @Inject
+    public JSSPKIUtility(PKIReader reader, Config config) {
         super(reader);
+        this.config = config;
+
+        // Make sure the base CRL work dir exists:
+        baseDir = new File(config.getString(ConfigProperties.CRL_WORK_DIR));
+        if (!baseDir.exists() && !baseDir.mkdirs()) {
+            throw new IseException(
+                "Unable to create base dir for CRL generation: " + baseDir);
+        }
     }
 
     @Override
@@ -381,31 +394,89 @@ public class JSSPKIUtility extends PKIUtility {
         return new byte[0];
     }
 
+    /*
+     * JSS provides no mechanism to generate CRLs. Instead of writing our own solution,
+     * for now we will shellout to openssl to generate.
+     *
+     * Openssl requires an index file containing information about the certificates to
+     * revoke. Each line of this file looks like:
+     *
+     * [V(alid)/R(evoked)]   [validuntil]   [serial]   [cert subject]
+     *
+     * Before we can generate we write out a temporary index file, which we use when we
+     * shell out to openssl.
+     */
     @Override
     public X509CRL createX509CRL(List<X509CRLEntryWrapper> entries, BigInteger crlNumber) {
 
         try {
-            X509Certificate caCert = reader.getCACert();
-            X509V2CRLGenerator generator = new X509V2CRLGenerator();
-            generator.setIssuerDN(caCert.getIssuerX500Principal());
-            generator.setThisUpdate(new Date());
-            generator.setNextUpdate(Util.tomorrow());
-            generator.setSignatureAlgorithm(SIGNATURE_ALGO);
-            //add all the crl entries.
-            for (X509CRLEntryWrapper entry : entries) {
-                generator.addCRLEntry(entry.getSerialNumber(), entry.getRevocationDate(),
-                    CRLReason.privilegeWithdrawn);
-            }
-            log.info("Completed adding CRL numbers to the certificate.");
-            generator.addExtension(X509Extensions.AuthorityKeyIdentifier,
-                false, new AuthorityKeyIdentifierStructure(caCert));
-            generator.addExtension(X509Extensions.CRLNumber, false,
-                new CRLNumber(crlNumber));
-            return generator.generate(reader.getCaKey());
+            // Make a temporary directory where we'll do our openssl work:
+            File workDir = makeTempWorkDir();
+            writeOpensslIndexFile(workDir, entries);
+
+
+//            X509Certificate caCert = reader.getCACert();
+//            X509V2CRLGenerator generator = new X509V2CRLGenerator();
+//            generator.setIssuerDN(caCert.getIssuerX500Principal());
+//            generator.setThisUpdate(new Date());
+//            generator.setNextUpdate(Util.tomorrow());
+//            generator.setSignatureAlgorithm(SIGNATURE_ALGO);
+//            //add all the crl entries.
+//            for (X509CRLEntryWrapper entry : entries) {
+//                generator.addCRLEntry(entry.getSerialNumber(), entry.getRevocationDate(),
+//                    CRLReason.privilegeWithdrawn);
+//            }
+//            log.info("Completed adding CRL numbers to the certificate.");
+//            generator.addExtension(X509Extensions.AuthorityKeyIdentifier,
+//                false, new AuthorityKeyIdentifierStructure(caCert));
+//            generator.addExtension(X509Extensions.CRLNumber, false,
+//                new CRLNumber(crlNumber));
+//            return generator.generate(reader.getCaKey());
         }
         catch (Exception e) {
             throw new RuntimeException(e);
         }
+        return null;
+    }
+
+    private File makeTempWorkDir() throws IOException {
+        File tmp = File.createTempFile("CRL", Long.toString(System.nanoTime()),
+            baseDir);
+
+        if (!tmp.delete()) {
+            throw new IOException("Could not delete temp file: " + tmp.getAbsolutePath());
+        }
+
+        if (!tmp.mkdirs()) {
+            throw new IOException("Could not create temp directory for CRL generation: " +
+                tmp.getAbsolutePath());
+        }
+
+        return (tmp);
+    }
+
+    private void writeOpensslIndexFile(File workDir, List<X509CRLEntryWrapper> entries) {
+        try {
+            File index = new File(workDir, OPENSSL_INDEX_FILENAME);
+            log.debug("Writing OpenSSL index file: {}", index.getAbsolutePath());
+            PrintWriter writer = new PrintWriter(index, "UTF-8");
+            Formatter f = new Formatter();
+            for (X509CRLEntryWrapper entry : entries) {
+                long unixTime = entry.getRevocationDate().getTime() / 1000;
+                String line = f.format("R   %sZ   %s   %s",
+                    unixTime, entry.getSerialNumber(),
+                    entry.getSubject()).toString();
+                log.debug(line);
+                writer.println(line);
+
+            }
+            f.close();
+            writer.close();
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     private byte[] getPemEncoded(String type, byte[] data) throws IOException {

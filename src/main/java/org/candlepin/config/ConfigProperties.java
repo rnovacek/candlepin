@@ -83,6 +83,7 @@ public class ConfigProperties {
         UnpauseJob.class.getName(), SweepBarJob.class.getName()};
 
     public static final String SYNC_WORK_DIR = "candlepin.sync.work_dir";
+    public static final String CRL_WORK_DIR = "candlepin.crl.work_dir";
     public static final String CONSUMER_FACTS_MATCHER =
                                   "candlepin.consumer.facts.match_regex";
 
@@ -181,6 +182,7 @@ public class ConfigProperties {
                 this.put(CRL_FILE_PATH, "/var/lib/candlepin/candlepin-crl.crl");
 
                 this.put(SYNC_WORK_DIR, "/var/cache/candlepin/sync");
+                this.put(CRL_WORK_DIR, "/var/cache/candlepin/crl");
                 this.put(CONSUMER_FACTS_MATCHER, ".*");
                 this.put(TRUSTED_AUTHENTICATION, "true");
                 this.put(SSL_AUTHENTICATION, "true");
