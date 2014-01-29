@@ -1,0 +1,283 @@
+#!/usr/bin/env python
+#
+# Copyright (c) 2010 Red Hat, Inc.
+#
+# This software is licensed to you under the GNU General Public License,
+# version 2 (GPLv2). There is NO WARRANTY for this software, express or
+# implied, including the implied warranties of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. You should have received a copy of GPLv2
+# along with this software; if not, see
+# http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+#
+# Red Hat trademarks are not licensed under GPLv2. No permission is
+# granted to use or replicate Red Hat trademarks that are incorporated
+# in this software or its documentation.
+#
+
+import abc
+import libxml2
+import logging
+import os
+import shutil
+import sys
+import subprocess
+import urllib2
+
+from contextlib import contextmanager
+from okaara.cli import Cli, Section, Command
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(message)s")
+logger = logging.getLogger('cpsetup')
+
+
+@contextmanager
+def open_xml(filename):
+    """libxml2 does not handle cleaning up memory automatically. This
+    context manager will take care of XML documents."""
+    doc = libxml2.parseFile(filename)
+    yield doc
+    doc.freeDoc()
+
+
+class CandlepinCli(Cli):
+    def __init__(self):
+        super(CandlepinCli, self).__init__()
+        self.add_section(TomcatSection())
+        self.add_section(CandlepinSection())
+
+
+class ShellInteractingSection(Section):
+    def run_command(self, command, *args):
+        command_line = list(args)
+        command_line.insert(0, command)
+        try:
+            result = subprocess.check_output(command_line)
+        except subprocess.CalledProcessError:
+            logger.warn("Command did not return zero.", exc_info=1)
+            raise
+        except:
+            logger.exception("Call to %s failed." % command_line)
+            sys.exit(-1)
+        return result
+
+    def run_and_forget(self, command, *args):
+        try:
+            self.run_command(command, *args)
+        except subprocess.CalledProcessError:
+            pass
+
+    def call_service(self, service, action):
+        self.run_and_forget('/sbin/service', service, action)
+
+
+class CandlepinSection(Section):
+    def __init__(self):
+        super(CandlepinSection, self).__init__('candlepin', 'manages candlepin')
+        self.create_command('init', "initialize Candlepin", self.initialize)
+
+    def initialize(self, **kwargs):
+        try:
+            f = urllib2.urlopen('http://localhost:8080/candlepin/admin/init')
+            if f.getcode() == 200:
+                logger.info('Candlepin initialized!')
+        except urllib2.URLError:
+            logger.exception("Could not initialize Candlepin.")
+
+
+class TomcatSection(ShellInteractingSection):
+        def __init__(self):
+            super(TomcatSection, self).__init__('tomcat', 'manages tomcat')
+            config_command = Command('configure', "update Tomcat's configuration to"
+                    " add a Candlepin Connector", self.configure)
+            config_command.create_option('--directory', 'the Tomcat configuration directory',
+                    default='/etc/%s/' % self.tomcat_name)
+            config_command.create_flag('--stdout', 'write config file to stdout')
+            self.add_command(config_command)
+
+        @property
+        def tomcat_name(self):
+            name = 'tomcat'
+            if os.path.exists('/etc/tomcat6'):
+                name = 'tomcat6'
+            return name
+
+        def make_backup_config(self, conf_dir):
+            logger.info("Backing up current server.xml")
+            shutil.copy(os.path.join(conf_dir, "server.xml"),
+                    os.path.join(conf_dir, "server.xml.original"))
+
+        def configure(self, **kwargs):
+            self.make_backup_config(kwargs['directory'])
+            xml_file = os.path.join(kwargs['directory'], "server.xml")
+            logger.debug("Opening %s" % xml_file)
+            with open_xml(xml_file) as doc:
+                SslContextEditor(doc).insert()
+                AccessValveEditor(doc).insert()
+
+                if kwargs['stdout']:
+                    print doc.serialize()
+                else:
+                    self.call_service(self.tomcat_name, 'stop')
+                    doc.saveFile(xml_file)
+                    self.call_service(self.tomcat_name, 'start')
+
+
+class AbstractBaseEditor(object):
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, doc):
+        self.doc = doc
+
+    @abc.abstractproperty
+    def insertion_xpath(self):
+        """The XPath expression to find the parent of the element you wish to edit.
+        This is necessary because we need to check if the element to edit already exists
+        under the parent."""
+        pass
+
+    @abc.abstractproperty
+    def search_xpath(self):
+        """The XPath expression to find the element you wish to edit.
+        Should be relative to insertion_xpath."""
+        pass
+
+    @abc.abstractproperty
+    def element(self):
+        pass
+
+    @abc.abstractproperty
+    def attributes(self):
+        pass
+
+    def _add_attributes(self, node, attributes):
+        # attributes is a list of 2-tuples formated like (attribute, value)
+        for k, v in attributes:
+            logger.debug("Setting %s to %s on %s" % (k, v, node.name))
+            node.setProp(k, v)
+
+    def _is_different(self, node):
+        current_attributes = {}
+        for property in node.properties:
+            if property.type == "attribute":
+                current_attributes[property.name] = property.content
+        return node.name != self.element or current_attributes != dict(self.attributes)
+
+    def _update(self, existing_nodes):
+        different_nodes = filter(self._is_different, existing_nodes)
+        for match in different_nodes:
+            logger.info("Editing %s on line %s" % (match.name, match.lineNo()))
+            for property in match.properties:
+                if property.type == "attribute":
+                    property.unlinkNode()
+                    property.freeNode()
+
+            self._add_attributes(match, self.attributes)
+
+    def _create(self, parent):
+        logger.info("Creating %s under %s on line %s" % (self.element, parent.name, parent.lineNo()))
+        new_element = libxml2.newNode(self.element)
+        self._add_attributes(new_element, self.attributes)
+        first_child = parent.firstElementChild()
+        if first_child:
+            # Insert the new node at the top so the output doesn't look like rubbish
+            first_child.addPrevSibling(new_element)
+            # Add a new line at the end of the new element
+            first_child.addPrevSibling(libxml2.newText("\n\n"))
+        else:
+            parent.addChild(new_element)
+            parent.addChild(libxml2.newText("\n\n"))
+
+    def insert(self):
+        insertion_points = self.doc.xpathEval(self.insertion_xpath)
+        for parent in insertion_points:
+            existing_nodes = parent.xpathEval(self.search_xpath)
+            logger.debug("Found %d nodes matching %s under %s" %
+                    (len(existing_nodes), self.search_xpath, self.insertion_xpath))
+            if existing_nodes:
+                self._update(existing_nodes)
+            else:
+                self._create(parent)
+
+
+class SslContextEditor(AbstractBaseEditor):
+    def __init__(self, *args, **kwargs):
+        super(SslContextEditor, self).__init__(*args, **kwargs)
+        self.port = "8443"
+
+    @property
+    def insertion_xpath(self):
+        return "/Server/Service"
+
+    @property
+    def search_xpath(self):
+        return "./Connector[@port='%s']" % self.port
+
+    @property
+    def element(self):
+        return "Connector"
+
+    @property
+    def attributes(self):
+        ciphers = ",".join([
+            "SSL_RSA_WITH_3DES_EDE_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA",
+            "TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA",
+            "TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA",
+            "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_anon_WITH_3DES_EDE_CBC_SHA",
+            "TLS_ECDH_anon_WITH_AES_128_CBC_SHA,TLS_ECDH_anon_WITH_AES_256_CBC_SHA",
+        ])
+
+        # This is a list of tuples instead of a dict so we can preserve the attribute
+        # ordering.  OrderedDict didn't get added until 2.7.
+        return [
+            ("port", self.port),
+            ("protocol", "HTTP/1.1"),
+            ("SSLEnabled", "true"),
+            ("maxThreads", "150"),
+            ("scheme", "https"),
+            ("secure", "true"),
+            ("clientAuth", "want"),
+            ("SSLProtocol", "TLS"),
+            ("keystoreFile", "conf/keystore"),
+            ("truststoreFile", "conf/keystore"),
+            ("keystorePass", "password"),
+            ("keystoreType", "PKCS12"),
+            ("ciphers", ciphers),
+            ("truststorePass", "password"),
+        ]
+
+
+class AccessValveEditor(AbstractBaseEditor):
+    def __init__(self, *args, **kwargs):
+        super(AccessValveEditor, self).__init__(*args, **kwargs)
+        self.access_valve_class = "org.apache.catalina.valves.AccessLogValve"
+
+    @property
+    def insertion_xpath(self):
+        return "/Server/Service/Engine/Host"
+
+    @property
+    def search_xpath(self):
+        return "./Valve[@className='%s']" % self.access_valve_class
+
+    @property
+    def element(self):
+        return "Valve"
+
+    @property
+    def attributes(self):
+        return [
+            ("className", self.access_valve_class),
+            ("directory", "/var/log/candlepin/"),
+            ("prefix", "access"),
+            ("rotatable", "false"),
+            ("suffix", ".log"),
+            ("pattern", '%h %l %u %t "%r" %s %b "" "%{user-agent}i sm/%{x-subscription-manager-version}i" "req_time=%T,req=%{requestUuid}r"'),
+            ("resolveHosts", "false"),
+        ]
+
+
+if __name__ == "__main__":
+    if os.geteuid() != 0:
+        logger.error("You must run this command as root.  Try with 'sudo'.")
+        sys.exit(-1)
+    sys.exit(CandlepinCli().run(sys.argv[1:]))
