@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.x509.X509V2CRLGenerator;
-import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.candlepin.model.CertificateSerial;
 import org.candlepin.model.CertificateSerialCurator;
 import org.candlepin.pki.PKIReader;
@@ -32,6 +31,7 @@ import org.candlepin.pki.PKIUtility;
 import org.candlepin.pki.X509CRLEntryWrapper;
 import org.candlepin.pki.impl.BouncyCastlePKIUtility;
 import org.candlepin.pki.impl.DefaultSubjectKeyIdentifierWriter;
+import org.candlepin.test.TestUtil;
 import org.candlepin.util.Util;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,8 +41,6 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import java.math.BigInteger;
 import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509CRL;
 import java.security.cert.X509CRLEntry;
 import java.security.cert.X509Certificate;
@@ -62,48 +60,14 @@ import javax.security.auth.x500.X500Principal;
 @RunWith(MockitoJUnitRunner.class)
 public class CrlGeneratorTest {
 
-    private static final KeyPair KP = generateKP();
-    private static final X509Certificate CERT = generateCertificate();
+    private static final KeyPair KP = TestUtil.generateKP();
+    private static final X509Certificate CERT = TestUtil.generateCertificate(KP);
 
     @Mock private PKIReader pkiReader;
     @Mock private CertificateSerialCurator curator;
     private PKIUtility pkiUtility;
 
     private CrlGenerator generator;
-
-    public static KeyPair generateKP() {
-        KeyPairGenerator kpg;
-        try {
-            kpg = KeyPairGenerator.getInstance("RSA");
-            kpg.initialize(2048);
-            return kpg.generateKeyPair();
-        }
-        catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static X509Certificate generateCertificate() {
-        X500Principal principal = new X500Principal(generateFakePrincipal());
-        X509V3CertificateGenerator gen = new X509V3CertificateGenerator();
-        gen.setSerialNumber(BigInteger.TEN);
-        gen.setNotBefore(Util.yesterday());
-        gen.setNotAfter(Util.getFutureDate(2));
-        gen.setSubjectDN(principal);
-        gen.setIssuerDN(principal);
-        gen.setPublicKey(KP.getPublic());
-        gen.setSignatureAlgorithm("SHA1WITHRSA");
-        try {
-            return gen.generate(KP.getPrivate());
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static String generateFakePrincipal() {
-        return "CN=test, UID=" + UUID.randomUUID();
-    }
 
     @Before
     public void init() throws Exception {
@@ -198,7 +162,7 @@ public class CrlGeneratorTest {
     public void emptyRevocationsReturnsUntouched() throws Exception {
         // there's gotta be a way to reduce to a set of mocks
 
-        KeyPair kp = CrlGeneratorTest.generateKP();
+        KeyPair kp = TestUtil.generateKP();
         X509V2CRLGenerator g = new X509V2CRLGenerator();
         g.setIssuerDN(new X500Principal("CN=test, UID=" + UUID.randomUUID()));
         g.setThisUpdate(new Date());
@@ -224,7 +188,7 @@ public class CrlGeneratorTest {
     public void removeEntries() throws Exception {
         // there's gotta be a way to reduce to a set of mocks
 
-        KeyPair kp = CrlGeneratorTest.generateKP();
+        KeyPair kp = TestUtil.generateKP();
         X509V2CRLGenerator g = new X509V2CRLGenerator();
         g.setIssuerDN(new X500Principal("CN=test, UID=" + UUID.randomUUID()));
         g.setThisUpdate(new Date());
@@ -319,7 +283,7 @@ public class CrlGeneratorTest {
     @Test
     public void decodeValue() throws Exception {
         // there's gotta be a way to reduce to a set of mocks
-        KeyPair kp = CrlGeneratorTest.generateKP();
+        KeyPair kp = TestUtil.generateKP();
         X509V2CRLGenerator g = new X509V2CRLGenerator();
         g.setIssuerDN(new X500Principal("CN=test, UID=" + UUID.randomUUID()));
         g.setThisUpdate(new Date());

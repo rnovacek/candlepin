@@ -15,9 +15,26 @@
 package org.candlepin.pki.impl;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
+import java.math.BigInteger;
+import java.security.KeyPair;
+import java.security.cert.X509CRL;
+import java.security.cert.X509CRLEntry;
+import java.security.cert.X509Certificate;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+
+import org.mockito.Mock;
 import org.mozilla.jss.pkix.primitive.Name;
-
+import org.candlepin.config.Config;
+import org.candlepin.config.ConfigProperties;
+import org.candlepin.pki.PKIReader;
+import org.candlepin.pki.X509CRLEntryWrapper;
+import org.candlepin.test.TestUtil;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -25,12 +42,43 @@ import org.junit.Test;
  */
 public class JSSPKIUtilityTest {
 
+    private static final KeyPair KP = TestUtil.generateKP();
+    private static final X509Certificate CERT = TestUtil.generateCertificate(KP);
+
+    private Config config;
+    private JSSPKIUtility pkiUtility;
+    @Mock private PKIReader pkiReader;
+
+    @Before
+    public void before() throws Exception {
+        this.config = new ConfigForTesting();
+        pkiReader = mock(PKIReader.class);
+        when(pkiReader.getCaKey()).thenReturn(KP.getPrivate());
+        when(pkiReader.getCACert()).thenReturn(CERT);
+        pkiUtility = new JSSPKIUtility(null, config);
+    }
+
     @Test
     public void readkey() throws Exception {
-        JSSPKIUtility util = new JSSPKIUtility(null, null);
-        Name result = util.parseDN("CN=JarJar, OU=Binks");
+        Name result = pkiUtility.parseDN("CN=JarJar, OU=Binks");
         assertEquals("Name parsing is not correct", "OU=Binks, CN=JarJar",
             result.getRFC1485());
     }
 
+    @Test
+    public void generateCrl() throws Exception {
+        List<X509CRLEntryWrapper> entries = new LinkedList<X509CRLEntryWrapper>();
+        entries.add(new X509CRLEntryWrapper(new BigInteger("2233"), new Date()));
+        entries.add(new X509CRLEntryWrapper(new BigInteger("3333"), new Date()));
+        X509CRL crl = pkiUtility.createX509CRL(entries, new BigInteger("1"));
+        X509CRLEntry crlEntry = crl.getRevokedCertificate(entries.get(0).getSerialNumber());
+        assertNotNull(crlEntry);
+    }
+
+    private static class ConfigForTesting extends Config {
+        public ConfigForTesting() {
+            super(ConfigProperties.DEFAULT_PROPERTIES);
+            configuration.put(ConfigProperties.CRL_WORK_DIR, "/tmp/");
+        }
+    }
 }

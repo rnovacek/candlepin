@@ -17,6 +17,7 @@ package org.candlepin.pki.impl;
 import com.google.inject.Inject;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.IOUtils;
 import org.bouncycastle.asn1.ASN1EncodableVector;
 import org.bouncycastle.asn1.ASN1InputStream;
 import org.bouncycastle.asn1.ASN1Object;
@@ -39,6 +40,8 @@ import org.candlepin.pki.X509ByteExtensionWrapper;
 import org.candlepin.pki.X509CRLEntryWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
 import org.candlepin.util.Util;
+import org.junit.runner.RunWith;
+import org.mockito.runners.MockitoJUnitRunner;
 import org.mozilla.jss.CryptoManager.NotInitializedException;
 import org.mozilla.jss.asn1.ASN1Util;
 import org.mozilla.jss.asn1.ASN1Value;
@@ -64,8 +67,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.CharConversionException;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -80,6 +86,8 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Formatter;
@@ -125,6 +133,7 @@ import javax.naming.ldap.Rdn;
  * about not using bouncycastle as the JSSE provider.
  */
 @SuppressWarnings("deprecation")
+@RunWith(MockitoJUnitRunner.class)
 public class JSSPKIUtility extends PKIUtility {
     private static Logger log = LoggerFactory.getLogger(JSSPKIUtility.class);
 
@@ -136,6 +145,10 @@ public class JSSPKIUtility extends PKIUtility {
     public static final String NETSCAPE_CERT_TYPE_OID = "2.16.840.1.113730.1.1";
 
     private static final String OPENSSL_INDEX_FILENAME = "certindex";
+    private static final String OPENSSL_CRL_NUMBER_FILENAME = "crlnumber";
+    private static final String OPENSSL_CONF_FILENAME = "openssl.conf";
+
+    private static final String ASN1_DATE_FORMAT = "yyMMddHHmmss'Z'";
 
     private final File baseDir;
     private Config config;
@@ -398,13 +411,6 @@ public class JSSPKIUtility extends PKIUtility {
      * JSS provides no mechanism to generate CRLs. Instead of writing our own solution,
      * for now we will shellout to openssl to generate.
      *
-     * Openssl requires an index file containing information about the certificates to
-     * revoke. Each line of this file looks like:
-     *
-     * [V(alid)/R(evoked)]   [validuntil]   [serial]   [cert subject]
-     *
-     * Before we can generate we write out a temporary index file, which we use when we
-     * shell out to openssl.
      */
     @Override
     public X509CRL createX509CRL(List<X509CRLEntryWrapper> entries, BigInteger crlNumber) {
@@ -412,7 +418,21 @@ public class JSSPKIUtility extends PKIUtility {
         try {
             // Make a temporary directory where we'll do our openssl work:
             File workDir = makeTempWorkDir();
-            writeOpensslIndexFile(workDir, entries);
+            writeOpensslIndexFiles(workDir, entries);
+            File configFile = writeOpensslConfig(workDir);
+            writeOpensslCRLNumberFile(workDir, crlNumber);
+
+            // Not we shell out to openssl to create our CRL:
+            StringBuilder sb = new StringBuilder("openssl ca");
+            sb.append(" -config ");
+            sb.append(configFile.getAbsolutePath());
+            sb.append(" -gencrl");
+            sb.append(" -keyfile /etc/candlepin/certs/candlepin-ca.key");
+            sb.append(" -cert /etc/candlepin/certs/candlepin-ca.crt");
+            sb.append(" -out " + workDir.getAbsolutePath() + "/crl.pem");
+            executeCommand(sb.toString());
+//            executeCommand("openssl ca -config " +
+//                " -gencrl -keyfile ca.key -cert ca.crt -out root.crl.pem");
 
 
 //            X509Certificate caCert = reader.getCACert();
@@ -439,6 +459,19 @@ public class JSSPKIUtility extends PKIUtility {
         return null;
     }
 
+    private void executeCommand(String cmd) throws Exception {
+        log.debug("Executing command: " + cmd);
+        Process p = Runtime.getRuntime().exec(cmd);
+        if (p.waitFor() != 0) {
+            // Log stderr if there was a problem:
+            StringWriter writer = new StringWriter();
+            IOUtils.copy(p.getErrorStream(), writer);
+            log.error("Error generating CRL with command: " + cmd);
+            log.error(writer.toString());
+            throw new RuntimeException("Error generating CRL");
+        }
+    }
+
     private File makeTempWorkDir() throws IOException {
         File tmp = File.createTempFile("CRL", Long.toString(System.nanoTime()),
             baseDir);
@@ -455,28 +488,123 @@ public class JSSPKIUtility extends PKIUtility {
         return (tmp);
     }
 
-    private void writeOpensslIndexFile(File workDir, List<X509CRLEntryWrapper> entries) {
-        try {
-            File index = new File(workDir, OPENSSL_INDEX_FILENAME);
-            log.debug("Writing OpenSSL index file: {}", index.getAbsolutePath());
-            PrintWriter writer = new PrintWriter(index, "UTF-8");
+   /*
+    * Openssl requires an index file containing information about the certificates to
+    * revoke. Each line of this file looks like:
+    *
+    * E|R|V<tab>ExpiryDate<tab>[RevocationDate]<tab>Serial<tab>unknown<tab>SubjectDN
+    *
+    * Before we can generate we write out a temporary index file, which we use when we
+    * shell out to openssl.
+    */
+    private File writeOpensslIndexFiles(File workDir, List<X509CRLEntryWrapper> entries)
+        throws FileNotFoundException, UnsupportedEncodingException {
+        File index = new File(workDir, OPENSSL_INDEX_FILENAME);
+        log.debug("Writing OpenSSL index file: {}", index.getAbsolutePath());
+        PrintWriter writer = new PrintWriter(index, "UTF-8");
+        for (X509CRLEntryWrapper entry : entries) {
             Formatter f = new Formatter();
-            for (X509CRLEntryWrapper entry : entries) {
-                long unixTime = entry.getRevocationDate().getTime() / 1000;
-                String line = f.format("R   %sZ   %s   %s",
-                    unixTime, entry.getSerialNumber(),
-                    entry.getSubject()).toString();
-                log.debug(line);
-                writer.println(line);
 
-            }
+            // TODO: stop doing fake expiration dates
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(entry.getRevocationDate());
+            cal.add(Calendar.YEAR, 5);
+            Date fakeExpiration = cal.getTime();
+
+            String line = f.format("R\t%s\t%s\t%s\tunknown\t%s",
+                getASN1Date(fakeExpiration),
+                getASN1Date(entry.getRevocationDate()),
+                entry.getSerialNumber(),
+                entry.getSubject()).toString();
+            log.debug(line);
+            writer.println(line);
             f.close();
-            writer.close();
         }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        writer.close();
 
+        /*
+         * We also need certindex.attr, openssl would generate this for us if we were using
+         * it to manage certs. Instead we must write out the one attribute that is needed.
+         */
+        File indexAttr = new File(workDir, OPENSSL_INDEX_FILENAME + ".attr");
+        log.debug("Writing OpenSSL index attr file: {}", indexAttr.getAbsolutePath());
+        writer = new PrintWriter(indexAttr, "UTF-8");
+        writer.println("unique_subject = yes");
+        writer.close();
+
+        // Return the index file we wrote:
+        return index;
+    }
+
+    private File writeOpensslCRLNumberFile(File workDir, BigInteger crlNumber)
+        throws FileNotFoundException, UnsupportedEncodingException {
+        File indexAttr = new File(workDir, OPENSSL_CRL_NUMBER_FILENAME);
+        log.debug("Writing OpenSSL crlnumber file: {}, crl number: {}",
+            indexAttr.getAbsolutePath(), crlNumber);
+        PrintWriter writer = new PrintWriter(indexAttr, "UTF-8");
+        writer.println("0" + crlNumber);
+        writer.close();
+        return indexAttr;
+    }
+
+    private String getASN1Date(Date date) {
+        SimpleDateFormat sdf = new SimpleDateFormat(ASN1_DATE_FORMAT);
+        return sdf.format(date);
+    }
+
+    private File writeOpensslConfig(File workDir) throws
+    FileNotFoundException, UnsupportedEncodingException {
+        String fileContents = "# Mainly copied from:\n" +
+            "# http://swearingscience.com/2009/01/18/openssl-self-signed-ca/\n" +
+            "\n" +
+            "[ ca ]\n" +
+            "default_ca = myca\n" +
+            "\n" +
+            "[ crl_ext ]\n" +
+            "# issuerAltName=issuer:copy  #this would copy the issuer name to altname\n" +
+            "authorityKeyIdentifier=keyid:always\n" +
+            "\n" +
+            " [ myca ]\n" +
+            " dir = " + workDir.getAbsolutePath() + "\n" +
+            " new_certs_dir = $dir\n" +
+            " unique_subject = no\n" +
+            " certificate = $dir/ca.crt\n" +
+            " database = $dir/certindex\n" +
+            " private_key = $dir/ca.key\n" +
+            " serial = $dir/certserial\n" +
+            " default_days = 730\n" +
+            " default_md = sha1\n" +
+            " policy = myca_policy\n" +
+            " x509_extensions = myca_extensions\n" +
+            " crlnumber = $dir/crlnumber\n" +
+            " default_crl_days = 730\n" +
+            "\n" +
+            " [ myca_policy ]\n" +
+            " commonName = supplied\n" +
+            " stateOrProvinceName = supplied\n" +
+            " countryName = optional\n" +
+            " emailAddress = optional\n" +
+            " organizationName = supplied\n" +
+            " organizationalUnitName = optional\n" +
+            "\n" +
+            " [ myca_extensions ]\n" +
+            " basicConstraints = CA:false\n" +
+            " subjectKeyIdentifier = hash\n" +
+            " authorityKeyIdentifier = keyid:always\n" +
+            " keyUsage = digitalSignature,keyEncipherment\n" +
+            " extendedKeyUsage = serverAuth\n" +
+            " crlDistributionPoints = URI:http://example.com/root.crl\n" +
+            " subjectAltName  = @alt_names\n" +
+            "\n" +
+            " [alt_names]\n" +
+            " DNS.1 = example.com\n" +
+            " DNS.2 = *.example.com";
+        File config = new File(workDir, OPENSSL_CONF_FILENAME);
+        log.debug("Writing OpenSSL config file: {}", config.getAbsolutePath());
+        PrintWriter writer = new PrintWriter(config, "UTF-8");
+        writer.write(fileContents);
+        writer.close();
+        return config;
     }
 
     private byte[] getPemEncoded(String type, byte[] data) throws IOException {

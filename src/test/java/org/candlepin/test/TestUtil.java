@@ -14,6 +14,7 @@
  */
 package org.candlepin.test;
 
+import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.candlepin.auth.Access;
 import org.candlepin.auth.UserPrincipal;
 import org.candlepin.auth.permissions.OwnerPermission;
@@ -37,6 +38,7 @@ import org.candlepin.model.ProvidedProduct;
 import org.candlepin.model.RulesCurator;
 import org.candlepin.model.Subscription;
 import org.candlepin.model.User;
+import org.candlepin.util.Util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -45,6 +47,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.binary.Base64;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -52,6 +59,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
+
+import javax.security.auth.x500.X500Principal;
 
 /**
  * TestUtil for creating various testing objects. Objects backed by the database
@@ -365,5 +375,36 @@ public class TestUtil {
         JsonNode tree2 = mapper.readTree(two);
         return tree1.equals(tree2);
     }
+
+    public static KeyPair generateKP() {
+        KeyPairGenerator kpg;
+        try {
+            kpg = KeyPairGenerator.getInstance("RSA");
+            kpg.initialize(2048);
+            return kpg.generateKeyPair();
+        }
+        catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static X509Certificate generateCertificate(KeyPair keyPair) {
+        X500Principal principal = new X500Principal("CN=test, UID=" + UUID.randomUUID());
+        X509V3CertificateGenerator gen = new X509V3CertificateGenerator();
+        gen.setSerialNumber(BigInteger.TEN);
+        gen.setNotBefore(Util.yesterday());
+        gen.setNotAfter(Util.getFutureDate(2));
+        gen.setSubjectDN(principal);
+        gen.setIssuerDN(principal);
+        gen.setPublicKey(keyPair.getPublic());
+        gen.setSignatureAlgorithm("SHA1WITHRSA");
+        try {
+            return gen.generate(keyPair.getPrivate());
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
 }
