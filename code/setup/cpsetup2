@@ -18,9 +18,13 @@ import abc
 import libxml2
 import logging
 import os
+import random
 import shutil
-import sys
+import socket
+import string
 import subprocess
+import sys
+import time
 import urllib2
 
 from contextlib import contextmanager
@@ -50,6 +54,7 @@ class ShellInteractingSection(Section):
     def run_command(self, command, *args):
         command_line = list(args)
         command_line.insert(0, command)
+        logger.debug('Executing %s' % command_line)
         try:
             result = subprocess.check_output(command_line)
         except subprocess.CalledProcessError:
@@ -66,14 +71,20 @@ class ShellInteractingSection(Section):
         except subprocess.CalledProcessError:
             pass
 
+    def arg_parse(self, args):
+        return args.split()
+
     def call_service(self, service, action):
         self.run_and_forget('/sbin/service', service, action)
 
 
-class CandlepinSection(Section):
+class CandlepinSection(ShellInteractingSection):
     def __init__(self):
         super(CandlepinSection, self).__init__('candlepin', 'manages candlepin')
-        self.create_command('init', "initialize Candlepin", self.initialize)
+        self.create_command('init', 'initialize Candlepin', self.initialize)
+        create_certs_command = Command('create_certs', 'create Candlepin X509 certificates', self.create_certs)
+        create_certs_command.create_flag('--force', 'force certificate creation even if they already exist')
+        self.add_command(create_certs_command)
 
     def initialize(self, **kwargs):
         try:
@@ -82,6 +93,39 @@ class CandlepinSection(Section):
                 logger.info('Candlepin initialized!')
         except urllib2.URLError:
             logger.exception("Could not initialize Candlepin.")
+
+    def _set_cert_locations(self):
+        self.cert_home = '/etc/candlepin/certs'
+        self.ca_key_passwd = self.cert_home + '/candlepin-ca-password.txt'
+        self.ca_key = self.cert_home + '/candlepin-ca.key'
+        self.ca_pub_key = self.cert_home + '/candlepin-ca-pub.key'
+        self.ca_cert = self.cert_home + '/candlepin-ca.crt'
+        self.keystore = self.cert_home + '/keystore'
+
+    def create_certs(self, **kwargs):
+        self._set_cert_locations()
+        if not os.path.exists(self.cert_home):
+            os.makedirs(self.cert_home)
+
+        if os.path.exists(self.ca_key) and os.path.exists(self.ca_cert) and not kwargs['force']:
+            logger.info("Cerficiates already exist, skipping...")
+            return
+
+        logger.info("Creating CA private key password")
+        with os.fdopen(os.open(self.ca_key_passwd, os.O_WRONLY | os.O_CREAT, 0o600), 'w') as f:
+            f.write(''.join(random.choice(string.ascii_letters + string.digits) for i in range(10)))
+            f.write('\n')
+
+        logger.info("Creating CA private key")
+        ssl = '/usr/bin/openssl'
+        self.run_command(ssl, *self.arg_parse('genrsa -out %s -passout file:%s 1024' % (self.ca_key, self.ca_key_passwd)))
+        logger.info("Creating CA public key")
+        self.run_command(ssl, *self.arg_parse('rsa -pubout -in %s -out %s' % (self.ca_key, self.ca_pub_key)))
+        logger.info("Creating CA certificate")
+        hostname = socket.gethostname()
+        self.run_command(ssl, *self.arg_parse('req -new -x509 -days 365 -key %s -out %s -subj /CN=%s/C=US/L=Raleigh/' % (self.ca_key, self.ca_cert, hostname)))
+        self.run_command(ssl, *self.arg_parse('pkcs12 -export -in %s -inkey %s -out %s -name tomcat -CAfile %s -caname root -chain -password pass:password' % (self.ca_cert, self.ca_key, self.keystore, self.ca_cert)))
+        os.chmod(self.keystore, 0o644)
 
 
 class TomcatSection(ShellInteractingSection):
@@ -106,6 +150,18 @@ class TomcatSection(ShellInteractingSection):
             shutil.copy(os.path.join(conf_dir, "server.xml"),
                     os.path.join(conf_dir, "server.xml.original"))
 
+        def wait_for_restart(self):
+            logger.info("Waiting for tomcat to restart...")
+            req = urllib2.Request('http://localhost:8080/candlepin/')
+            for x in range(1, 5):
+                time.sleep(5)
+                try:
+                    f = urllib2.urlopen(req)
+                    if f.getcode() == 200:
+                        break
+                except:
+                    logger.info("Waiting for tomcat to restart...")
+
         def configure(self, **kwargs):
             self.make_backup_config(kwargs['directory'])
             xml_file = os.path.join(kwargs['directory'], "server.xml")
@@ -120,6 +176,7 @@ class TomcatSection(ShellInteractingSection):
                     self.call_service(self.tomcat_name, 'stop')
                     doc.saveFile(xml_file)
                     self.call_service(self.tomcat_name, 'start')
+                    self.wait_for_restart()
 
 
 class AbstractBaseEditor(object):
