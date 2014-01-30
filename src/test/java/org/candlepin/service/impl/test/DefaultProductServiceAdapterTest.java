@@ -33,6 +33,7 @@ import org.candlepin.model.ProductCertificate;
 import org.candlepin.model.ProductCertificateCurator;
 import org.candlepin.model.ProductCurator;
 import org.candlepin.pki.PKIUtility;
+import org.candlepin.pki.PEMEncoder;
 import org.candlepin.service.UniqueIdGenerator;
 import org.candlepin.service.impl.DefaultProductServiceAdapter;
 import org.candlepin.util.X509ExtensionUtil;
@@ -57,6 +58,7 @@ public class DefaultProductServiceAdapterTest {
     private ProductCertificateCurator pcc;
     private PKIUtility pki;
     private X509ExtensionUtil extUtil;
+    private PEMEncoder pemEncoder;
     private ContentCurator cc;
 
     @Before
@@ -69,7 +71,9 @@ public class DefaultProductServiceAdapterTest {
         Config config = mock(Config.class);
         when(config.environmentFilteringEnabled()).thenReturn(false);
         extUtil = new X509ExtensionUtil(config);
-        dpsa = new DefaultProductServiceAdapter(pc, pcc, pki, extUtil, cc, idgen);
+        pemEncoder = mock(PEMEncoder.class);
+        dpsa = new DefaultProductServiceAdapter(pc, pcc, pki, extUtil, cc, idgen,
+            pemEncoder);
     }
 
     @Test
@@ -154,7 +158,7 @@ public class DefaultProductServiceAdapterTest {
         when(pcc.findForProduct((eq(p)))).thenReturn(null);
         KeyPair kp = createKeyPair();
         when(pki.generateNewKeyPair()).thenReturn(kp);
-        when(pki.getPemEncoded(any(Key.class))).thenReturn("junk".getBytes());
+        when(pemEncoder.getPemEncoded(any(Key.class))).thenReturn("junk".getBytes());
         ProductCertificate result = dpsa.getProductCertificate(p);
         assertNotNull(result);
         assertEquals(p, result.getProduct());

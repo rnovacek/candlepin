@@ -16,7 +16,6 @@ package org.candlepin.pki.impl;
 
 import com.google.inject.Inject;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
 import org.bouncycastle.asn1.ASN1EncodableVector;
 import org.bouncycastle.asn1.ASN1InputStream;
@@ -39,6 +38,7 @@ import org.candlepin.pki.PKIUtility;
 import org.candlepin.pki.X509ByteExtensionWrapper;
 import org.candlepin.pki.X509CRLEntryWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
+import org.candlepin.util.CrlFileUtil;
 import org.candlepin.util.Util;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
@@ -64,7 +64,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.CharConversionException;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -74,14 +73,11 @@ import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
-import java.security.Key;
 import java.security.KeyPair;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PublicKey;
-import java.security.cert.CRLException;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
@@ -147,16 +143,20 @@ public class JSSPKIUtility extends PKIUtility {
     private static final String OPENSSL_INDEX_FILENAME = "certindex";
     private static final String OPENSSL_CRL_NUMBER_FILENAME = "crlnumber";
     private static final String OPENSSL_CONF_FILENAME = "openssl.conf";
+    private static final String OPENSSL_CRL_FILENAME = "crl.pem";
+
 
     private static final String ASN1_DATE_FORMAT = "yyMMddHHmmss'Z'";
 
     private final File baseDir;
     private Config config;
+    private CrlFileUtil crlFileUtil;
 
     @Inject
-    public JSSPKIUtility(PKIReader reader, Config config) {
+    public JSSPKIUtility(PKIReader reader, Config config, CrlFileUtil crlFileUtil) {
         super(reader);
         this.config = config;
+        this.crlFileUtil = crlFileUtil;
 
         // Make sure the base CRL work dir exists:
         baseDir = new File(config.getString(ConfigProperties.CRL_WORK_DIR));
@@ -422,15 +422,23 @@ public class JSSPKIUtility extends PKIUtility {
             File configFile = writeOpensslConfig(workDir);
             writeOpensslCRLNumberFile(workDir, crlNumber);
 
-            // Not we shell out to openssl to create our CRL:
+            // Now we shell out to openssl to create our CRL:
             StringBuilder sb = new StringBuilder("openssl ca");
             sb.append(" -config ");
             sb.append(configFile.getAbsolutePath());
             sb.append(" -gencrl");
             sb.append(" -keyfile /etc/candlepin/certs/candlepin-ca.key");
             sb.append(" -cert /etc/candlepin/certs/candlepin-ca.crt");
-            sb.append(" -out " + workDir.getAbsolutePath() + "/crl.pem");
+            sb.append(" -out ");
+            sb.append(workDir.getAbsolutePath());
+            sb.append("/");
+            sb.append(OPENSSL_CRL_FILENAME);
             executeCommand(sb.toString());
+
+            // Now we read the CRL PEM and return the resulting object:
+            File crlResult = new File(workDir, OPENSSL_CRL_FILENAME);
+            X509CRL crl = crlFileUtil.readCRLFile(crlResult);
+            return crl;
 //            executeCommand("openssl ca -config " +
 //                " -gencrl -keyfile ca.key -cert ca.crt -out root.crl.pem");
 
@@ -456,7 +464,6 @@ public class JSSPKIUtility extends PKIUtility {
         catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return null;
     }
 
     private void executeCommand(String cmd) throws Exception {
@@ -542,9 +549,22 @@ public class JSSPKIUtility extends PKIUtility {
         log.debug("Writing OpenSSL crlnumber file: {}, crl number: {}",
             indexAttr.getAbsolutePath(), crlNumber);
         PrintWriter writer = new PrintWriter(indexAttr, "UTF-8");
-        writer.println("0" + crlNumber);
+        writer.println(padSerial(crlNumber));
         writer.close();
         return indexAttr;
+    }
+
+    /**
+     * OpenSSL demands the string length of serials to be a non-zero multiple of 2. (?)
+     * @param serial
+     * @return Padded string representation of serial for use with openssl files.
+     */
+    private String padSerial(BigInteger serial) {
+        String serialStr = serial.toString();
+        if (serialStr.length() % 2 != 0) {
+            serialStr = "0" + serialStr;
+        }
+        return serialStr;
     }
 
     private String getASN1Date(Date date) {
@@ -605,44 +625,6 @@ public class JSSPKIUtility extends PKIUtility {
         writer.write(fileContents);
         writer.close();
         return config;
-    }
-
-    private byte[] getPemEncoded(String type, byte[] data) throws IOException {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        Base64 b64 = new Base64(64);
-        String header = "-----BEGIN " + type + "-----\r\n";
-        String footer = "-----END " + type + "-----\r\n";
-        byteArrayOutputStream.write(header.getBytes());
-        byteArrayOutputStream.write(b64.encode(data));
-        byteArrayOutputStream.write(footer.getBytes());
-        byteArrayOutputStream.close();
-        log.error(new String(byteArrayOutputStream.toByteArray()));
-        return byteArrayOutputStream.toByteArray();
-    }
-
-    @Override
-    public byte[] getPemEncoded(X509Certificate cert) throws IOException {
-        try {
-            return getPemEncoded("CERTIFICATE", cert.getEncoded());
-        }
-        catch (CertificateEncodingException e) {
-            throw new IOException(e);
-        }
-    }
-
-    @Override
-    public byte[] getPemEncoded(Key key) throws IOException {
-        return getPemEncoded("RSA PRIVATE KEY", key.getEncoded());
-    }
-
-    @Override
-    public byte[] getPemEncoded(X509CRL crl) throws IOException {
-        try {
-            return getPemEncoded("THINGY", crl.getEncoded());
-        }
-        catch (CRLException e) {
-            throw new IOException(e);
-        }
     }
 
     @Override

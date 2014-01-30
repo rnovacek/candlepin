@@ -21,8 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.candlepin.controller.CrlGenerator;
-import org.candlepin.pki.PKIUtility;
-
+import org.candlepin.pki.PEMEncoder;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
@@ -46,11 +45,11 @@ public class CrlFileUtilTest {
     private CrlFileUtil cfu;
 
     @Mock private CrlGenerator crlGenerator;
-    @Mock private PKIUtility pkiUtility;
+    @Mock private PEMEncoder pemEncoder;
 
     @Before
     public void init() {
-        this.cfu = new CrlFileUtil(pkiUtility);
+        this.cfu = new CrlFileUtil(pemEncoder);
     }
 
     @Test(expected = IOException.class)
@@ -67,7 +66,7 @@ public class CrlFileUtilTest {
         X509CRL crl = mock(X509CRL.class);
         when(crl.getEncoded()).thenReturn(Base64.encodeBase64("encoded".getBytes()));
         when(crlGenerator.syncCRLWithDB(any(X509CRL.class))).thenReturn(crl);
-        when(pkiUtility.getPemEncoded(any(X509CRL.class))).thenReturn(new byte [2]);
+        when(pemEncoder.getPemEncoded(any(X509CRL.class))).thenReturn(new byte [2]);
         cfu.writeCRLFile(crlFile, crl);
         File f = new File("/tmp/biteme.crl");
         assertTrue(f.exists());
@@ -84,7 +83,7 @@ public class CrlFileUtilTest {
             X509CRL crl = mock(X509CRL.class);
             when(crl.getEncoded()).thenReturn(Base64.encodeBase64("encoded".getBytes()));
             when(crlGenerator.syncCRLWithDB(any(X509CRL.class))).thenReturn(crl);
-            when(pkiUtility.getPemEncoded(any(X509CRL.class))).thenReturn(new byte [2]);
+            when(pemEncoder.getPemEncoded(any(X509CRL.class))).thenReturn(new byte [2]);
             X509CRL updatedcrl = cfu.readCRLFile(f);
             cfu.writeCRLFile(f, updatedcrl);
             assertTrue(f.length() > 0);
@@ -123,7 +122,7 @@ public class CrlFileUtilTest {
             assertEquals(0, f.length());
             X509CRL crl = mock(X509CRL.class);
             when(crl.getEncoded()).thenReturn(Base64.encodeBase64("encoded".getBytes()));
-            when(pkiUtility.getPemEncoded(any(X509CRL.class))).thenReturn(new byte [2]);
+            when(pemEncoder.getPemEncoded(any(X509CRL.class))).thenReturn(new byte [2]);
             cfu.writeCRLFile(f, crl);
             assertTrue(f.length() > 0);
         }

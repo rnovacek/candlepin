@@ -36,19 +36,15 @@ import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.X509Extensions;
-import org.bouncycastle.openssl.PEMWriter;
 import org.bouncycastle.x509.X509V2CRLGenerator;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
-import java.security.Key;
 import java.security.KeyPair;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
@@ -198,30 +194,6 @@ public class BouncyCastlePKIUtility extends PKIUtility {
         catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private byte[] getPemEncoded(Object obj) throws IOException {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        OutputStreamWriter oswriter = new OutputStreamWriter(byteArrayOutputStream);
-        PEMWriter writer = new PEMWriter(oswriter);
-        writer.writeObject(obj);
-        writer.close();
-        return byteArrayOutputStream.toByteArray();
-    }
-
-    @Override
-    public byte[] getPemEncoded(X509Certificate cert) throws IOException {
-        return getPemEncoded((Object) cert);
-    }
-
-    @Override
-    public byte[] getPemEncoded(Key key) throws IOException {
-        return getPemEncoded((Object) key);
-    }
-
-    @Override
-    public byte[] getPemEncoded(X509CRL crl) throws IOException {
-        return getPemEncoded((Object) crl);
     }
 
     @Override

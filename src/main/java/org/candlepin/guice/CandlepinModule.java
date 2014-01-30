@@ -51,6 +51,7 @@ import org.candlepin.pinsetter.tasks.SweepBarJob;
 import org.candlepin.pinsetter.tasks.UnpauseJob;
 import org.candlepin.pki.PKIReader;
 import org.candlepin.pki.PKIUtility;
+import org.candlepin.pki.PEMEncoder;
 import org.candlepin.pki.impl.JSSPKIReader;
 import org.candlepin.pki.impl.JSSPKIUtility;
 import org.candlepin.policy.criteria.CriteriaRules;
@@ -198,6 +199,7 @@ public class CandlepinModule extends AbstractModule {
         bind(DeletedConsumerResource.class);
         bind(CdnResource.class);
         bind(GuestIdResource.class);
+        bind(PEMEncoder.class);
 
 
         bind(I18n.class).toProvider(I18nProvider.class);

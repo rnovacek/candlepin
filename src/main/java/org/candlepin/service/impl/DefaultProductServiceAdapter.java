@@ -22,6 +22,7 @@ import org.candlepin.model.ProductCertificate;
 import org.candlepin.model.ProductCertificateCurator;
 import org.candlepin.model.ProductCurator;
 import org.candlepin.pki.PKIUtility;
+import org.candlepin.pki.PEMEncoder;
 import org.candlepin.pki.X509ExtensionWrapper;
 import org.candlepin.service.ProductServiceAdapter;
 import org.candlepin.service.UniqueIdGenerator;
@@ -61,12 +62,13 @@ public class DefaultProductServiceAdapter implements ProductServiceAdapter {
     private PKIUtility pki;
     private X509ExtensionUtil extensionUtil;
     private UniqueIdGenerator idGenerator;
+    private PEMEncoder pemEncoder;
 
     @Inject
     public DefaultProductServiceAdapter(ProductCurator prodCurator,
         ProductCertificateCurator prodCertCurator, PKIUtility pki,
         X509ExtensionUtil extensionUtil, ContentCurator contentCurator,
-        UniqueIdGenerator idGenerator) {
+        UniqueIdGenerator idGenerator, PEMEncoder pemEncoder) {
 
         this.prodCurator = prodCurator;
         this.prodCertCurator = prodCertCurator;
@@ -74,6 +76,7 @@ public class DefaultProductServiceAdapter implements ProductServiceAdapter {
         this.extensionUtil = extensionUtil;
         this.contentCurator = contentCurator;
         this.idGenerator = idGenerator;
+        this.pemEncoder = pemEncoder;
     }
 
     @Override
@@ -152,8 +155,8 @@ public class DefaultProductServiceAdapter implements ProductServiceAdapter {
             serial, null);
 
         ProductCertificate cert = new ProductCertificate();
-        cert.setKeyAsBytes(pki.getPemEncoded(keyPair.getPrivate()));
-        cert.setCertAsBytes(this.pki.getPemEncoded(x509Cert));
+        cert.setKeyAsBytes(pemEncoder.getPemEncoded(keyPair.getPrivate()));
+        cert.setCertAsBytes(pemEncoder.getPemEncoded(x509Cert));
         cert.setProduct(product);
 
         return cert;

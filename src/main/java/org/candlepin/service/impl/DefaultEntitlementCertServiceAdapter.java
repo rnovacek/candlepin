@@ -45,6 +45,7 @@ import org.candlepin.model.ProductContent;
 import org.candlepin.model.ProvidedProduct;
 import org.candlepin.model.Subscription;
 import org.candlepin.pki.PKIUtility;
+import org.candlepin.pki.PEMEncoder;
 import org.candlepin.pki.X509ByteExtensionWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
 import org.candlepin.service.BaseEntitlementCertServiceAdapter;
@@ -76,6 +77,7 @@ public class DefaultEntitlementCertServiceAdapter extends
     private EntitlementCurator entCurator;
     private I18n i18n;
     private Config config;
+    private PEMEncoder pemEncoder;
 
     private static Logger log =
         LoggerFactory.getLogger(DefaultEntitlementCertServiceAdapter.class);
@@ -89,7 +91,7 @@ public class DefaultEntitlementCertServiceAdapter extends
         CertificateSerialCurator serialCurator,
         ProductServiceAdapter productAdapter,
         EntitlementCurator entCurator, I18n i18n,
-        Config config) {
+        Config config, PEMEncoder pemEncoder) {
 
         this.pki = pki;
         this.extensionUtil = extensionUtil;
@@ -101,6 +103,7 @@ public class DefaultEntitlementCertServiceAdapter extends
         this.entCurator = entCurator;
         this.i18n = i18n;
         this.config = config;
+        this.pemEncoder = pemEncoder;
     }
 
 
@@ -348,13 +351,13 @@ public class DefaultEntitlementCertServiceAdapter extends
 
         EntitlementCertificate cert = new EntitlementCertificate();
         cert.setSerial(serial);
-        cert.setKeyAsBytes(pki.getPemEncoded(keyPair.getPrivate()));
+        cert.setKeyAsBytes(pemEncoder.getPemEncoded(keyPair.getPrivate()));
 
         products.add(product);
         Map<String, EnvironmentContent> promotedContent = getPromotedContent(entitlement);
         String contentPrefix = getContentPrefix(entitlement, !thisIsUeberCert);
 
-        String pem = new String(this.pki.getPemEncoded(x509Cert));
+        String pem = new String(pemEncoder.getPemEncoded(x509Cert));
 
         if (shouldGenerateV3(entitlement)) {
             byte[] payloadBytes = v3extensionUtil.createEntitlementDataPayload(products,

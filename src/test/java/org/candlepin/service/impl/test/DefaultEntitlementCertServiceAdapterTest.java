@@ -74,6 +74,7 @@ import org.candlepin.model.ProductContent;
 import org.candlepin.model.ProductPoolAttribute;
 import org.candlepin.model.Subscription;
 import org.candlepin.pki.PKIUtility;
+import org.candlepin.pki.PEMEncoder;
 import org.candlepin.pki.X509ByteExtensionWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
 import org.candlepin.pki.impl.BouncyCastlePKIUtility;
@@ -124,6 +125,8 @@ public class DefaultEntitlementCertServiceAdapterTest {
     @Mock
     private PKIUtility mockedPKI;
     @Mock
+    private PEMEncoder mockPemEncoder;
+    @Mock
     private CertificateSerialCurator serialCurator;
     @Mock
     private ProductServiceAdapter productAdapter;
@@ -173,7 +176,7 @@ public class DefaultEntitlementCertServiceAdapterTest {
             mock(EntitlementCertificateCurator.class), keyPairCurator,
             serialCurator, productAdapter, entCurator,
             I18nFactory.getI18n(getClass(), Locale.US, I18nFactory.FALLBACK),
-            config);
+            config, mockPemEncoder);
 
 
         product = new Product("12345", "a product", "variant", "version",
@@ -675,7 +678,7 @@ public class DefaultEntitlementCertServiceAdapterTest {
                 mock(EntitlementCertificateCurator.class), keyPairCurator,
                 serialCurator, productAdapter, entCurator,
                 I18nFactory.getI18n(getClass(), Locale.US, I18nFactory.FALLBACK),
-                mockConfig);
+                mockConfig, mockPemEncoder);
 
         entAdapter.createX509Certificate(entitlement, product,
             new HashSet<Product>(), new BigInteger("1234"), keyPair(), true);
@@ -713,7 +716,7 @@ public class DefaultEntitlementCertServiceAdapterTest {
                 mock(EntitlementCertificateCurator.class), keyPairCurator,
                 serialCurator, productAdapter, entCurator,
                 I18nFactory.getI18n(getClass(), Locale.US, I18nFactory.FALLBACK),
-                mockConfig);
+                mockConfig, mockPemEncoder);
 
         entAdapter.createX509Certificate(entitlement,
             product, new HashSet<Product>(), new BigInteger("1234"), keyPair(), true);
@@ -744,7 +747,7 @@ public class DefaultEntitlementCertServiceAdapterTest {
                 mock(EntitlementCertificateCurator.class), keyPairCurator,
                 serialCurator, productAdapter, entCurator,
                 I18nFactory.getI18n(getClass(), Locale.US, I18nFactory.FALLBACK),
-                mockConfig);
+                mockConfig, mockPemEncoder);
 
         entAdapter.createX509Certificate(entitlement,
             product, new HashSet<Product>(), new BigInteger("1234"), keyPair(), true);
@@ -1424,9 +1427,9 @@ public class DefaultEntitlementCertServiceAdapterTest {
         KeyPair keyPair = new BouncyCastlePKIUtility(null, null).generateNewKeyPair();
         when(keyPairCurator.getConsumerKeyPair(any(Consumer.class))).thenReturn(keyPair);
 
-        when(mockedPKI.getPemEncoded(any(X509Certificate.class))).thenReturn(
+        when(mockPemEncoder.getPemEncoded(any(X509Certificate.class))).thenReturn(
             "".getBytes());
-        when(mockedPKI.getPemEncoded(any(Key.class))).thenReturn("".getBytes());
+        when(mockPemEncoder.getPemEncoded(any(Key.class))).thenReturn("".getBytes());
 
         CertificateSerial serial = mock(CertificateSerial.class);
         when(serial.getId()).thenReturn(1L);

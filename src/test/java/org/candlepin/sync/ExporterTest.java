@@ -236,10 +236,6 @@ public class ExporterTest {
 
         KeyPair keyPair = createKeyPair();
         when(consumer.getKeyPair()).thenReturn(keyPair);
-        when(pki.getPemEncoded(keyPair.getPrivateKey()))
-            .thenReturn("privateKey".getBytes());
-        when(pki.getPemEncoded(keyPair.getPublicKey()))
-            .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
         Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
@@ -290,10 +286,6 @@ public class ExporterTest {
 
         KeyPair keyPair = createKeyPair();
         when(consumer.getKeyPair()).thenReturn(keyPair);
-        when(pki.getPemEncoded(keyPair.getPrivateKey()))
-            .thenReturn("privateKey".getBytes());
-        when(pki.getPemEncoded(keyPair.getPublicKey()))
-            .thenReturn("publicKey".getBytes());
 
         Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
             pce, ec, ee, pki, config, exportRules, pprov, dvc, dve, cdnc, cdne);
@@ -326,10 +318,6 @@ public class ExporterTest {
 
         KeyPair keyPair = createKeyPair();
         when(consumer.getKeyPair()).thenReturn(keyPair);
-        when(pki.getPemEncoded(keyPair.getPrivateKey()))
-            .thenReturn("privateKey".getBytes());
-        when(pki.getPemEncoded(keyPair.getPublicKey()))
-            .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
         Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
@@ -372,10 +360,6 @@ public class ExporterTest {
 
         KeyPair keyPair = createKeyPair();
         when(consumer.getKeyPair()).thenReturn(keyPair);
-        when(pki.getPemEncoded(keyPair.getPrivateKey()))
-            .thenReturn("privateKey".getBytes());
-        when(pki.getPemEncoded(keyPair.getPublicKey()))
-            .thenReturn("publicKey".getBytes());
 
         // FINALLY test this badboy
         Exporter e = new Exporter(ctc, me, ce, cte, re, ece, ecsa, pe, psa,
@@ -416,10 +400,6 @@ public class ExporterTest {
 
         KeyPair keyPair = createKeyPair();
         when(consumer.getKeyPair()).thenReturn(keyPair);
-        when(pki.getPemEncoded(keyPair.getPrivateKey()))
-            .thenReturn("privateKey".getBytes());
-        when(pki.getPemEncoded(keyPair.getPublicKey()))
-            .thenReturn("publicKey".getBytes());
         when(consumer.getUuid()).thenReturn("8auuid");
         when(consumer.getName()).thenReturn("consumer_name");
         when(consumer.getType()).thenReturn(new ConsumerType(ConsumerTypeEnum.CANDLEPIN));
@@ -459,10 +439,6 @@ public class ExporterTest {
 
         KeyPair keyPair = createKeyPair();
         when(consumer.getKeyPair()).thenReturn(keyPair);
-        when(pki.getPemEncoded(keyPair.getPrivateKey()))
-            .thenReturn("privateKey".getBytes());
-        when(pki.getPemEncoded(keyPair.getPublicKey()))
-            .thenReturn("publicKey".getBytes());
         when(consumer.getUuid()).thenReturn("8auuid");
         when(consumer.getName()).thenReturn("consumer_name");
         when(consumer.getType()).thenReturn(new ConsumerType(ConsumerTypeEnum.CANDLEPIN));

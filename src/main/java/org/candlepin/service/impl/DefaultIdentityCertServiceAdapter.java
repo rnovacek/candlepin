@@ -21,6 +21,7 @@ import org.candlepin.model.IdentityCertificate;
 import org.candlepin.model.IdentityCertificateCurator;
 import org.candlepin.model.KeyPairCurator;
 import org.candlepin.pki.PKIUtility;
+import org.candlepin.pki.PEMEncoder;
 import org.candlepin.service.IdentityCertServiceAdapter;
 
 import com.google.common.base.Function;
@@ -49,6 +50,7 @@ public class DefaultIdentityCertServiceAdapter implements
     private KeyPairCurator keyPairCurator;
     private CertificateSerialCurator serialCurator;
     private Function<Date, Date> endDateGenerator;
+    private PEMEncoder pemEncoder;
 
     @SuppressWarnings("unchecked")
     @Inject
@@ -56,12 +58,13 @@ public class DefaultIdentityCertServiceAdapter implements
         IdentityCertificateCurator identityCertCurator,
         KeyPairCurator keyPairCurator,
         CertificateSerialCurator serialCurator,
-        @Named("endDateGenerator") Function endDtGen) {
+        @Named("endDateGenerator") Function endDtGen, PEMEncoder pemEncoder) {
         this.pki = pki;
         this.idCertCurator = identityCertCurator;
         this.keyPairCurator = keyPairCurator;
         this.serialCurator = serialCurator;
         this.endDateGenerator = endDtGen;
+        this.pemEncoder = pemEncoder;
     }
 
     @Override
@@ -130,8 +133,8 @@ public class DefaultIdentityCertServiceAdapter implements
             startDate, endDate, keyPair, BigInteger.valueOf(serial.getId()),
             consumer.getName());
 
-        identityCert.setCert(new String(pki.getPemEncoded(x509cert)));
-        identityCert.setKey(new String(pki.getPemEncoded(keyPair.getPrivate())));
+        identityCert.setCert(new String(pemEncoder.getPemEncoded(x509cert)));
+        identityCert.setKey(new String(pemEncoder.getPemEncoded(keyPair.getPrivate())));
         identityCert.setSerial(serial);
         identityCert.setConsumer(consumer);
         consumer.setIdCert(identityCert);

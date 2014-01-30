@@ -14,7 +14,7 @@
  */
 package org.candlepin.util;
 
-import org.candlepin.pki.PKIUtility;
+import org.candlepin.pki.PEMEncoder;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
@@ -40,12 +40,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 @Singleton
 public class CrlFileUtil {
     private static Logger log = LoggerFactory.getLogger(CrlFileUtil.class);
-    private final PKIUtility pkiUtility;
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
+    private PEMEncoder pemEncoder;
 
     @Inject
-    public CrlFileUtil(PKIUtility pkiUtility) {
-        this.pkiUtility = pkiUtility;
+    public CrlFileUtil(PEMEncoder pemEncoder) {
+        this.pemEncoder = pemEncoder;
     }
 
     /**
@@ -87,6 +87,7 @@ public class CrlFileUtil {
                     log.error(
                         "exception when closing a CRL file: {}", file.getAbsolutePath());
                     // we tried, we failed. better luck next time!
+                    // well that's a lousy attitude ^^ :)
                 }
             }
             lock.readLock().unlock();
@@ -96,7 +97,7 @@ public class CrlFileUtil {
     public byte[] writeCRLFile(File file, X509CRL crl)
         throws CRLException, CertificateException, IOException {
 
-        byte[] encoded = pkiUtility.getPemEncoded(crl);
+        byte[] encoded = pemEncoder.getPemEncoded(crl);
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         lock.writeLock().lock();
         try {

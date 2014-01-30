@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
-import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -94,19 +93,6 @@ public abstract class PKIUtility {
         generator.initialize(RSA_KEY_SIZE);
         return generator.generateKeyPair();
     }
-
-    /**
-     * Take an X509Certificate object and return a byte[] of the certificate,
-     * PEM encoded
-     * @param cert
-     * @return PEM-encoded bytes of the certificate
-     * @throws IOException if there is i/o problem
-     */
-    public abstract byte[] getPemEncoded(X509Certificate cert) throws IOException;
-
-    public abstract byte[] getPemEncoded(Key key) throws IOException;
-
-    public abstract byte[] getPemEncoded(X509CRL crl) throws IOException;
 
     public static X509Certificate createCert(byte[] certData) {
         try {
