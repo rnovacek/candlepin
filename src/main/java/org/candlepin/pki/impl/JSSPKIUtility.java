@@ -40,8 +40,6 @@ import org.candlepin.pki.X509CRLEntryWrapper;
 import org.candlepin.pki.X509ExtensionWrapper;
 import org.candlepin.util.CrlFileUtil;
 import org.candlepin.util.Util;
-import org.junit.runner.RunWith;
-import org.mockito.runners.MockitoJUnitRunner;
 import org.mozilla.jss.CryptoManager.NotInitializedException;
 import org.mozilla.jss.asn1.ASN1Util;
 import org.mozilla.jss.asn1.ASN1Value;
@@ -129,7 +127,6 @@ import javax.naming.ldap.Rdn;
  * about not using bouncycastle as the JSSE provider.
  */
 @SuppressWarnings("deprecation")
-@RunWith(MockitoJUnitRunner.class)
 public class JSSPKIUtility extends PKIUtility {
     private static Logger log = LoggerFactory.getLogger(JSSPKIUtility.class);
 
@@ -439,8 +436,6 @@ public class JSSPKIUtility extends PKIUtility {
             File crlResult = new File(workDir, OPENSSL_CRL_FILENAME);
             X509CRL crl = crlFileUtil.readCRLFile(crlResult);
             return crl;
-//            executeCommand("openssl ca -config " +
-//                " -gencrl -keyfile ca.key -cert ca.crt -out root.crl.pem");
 
 
 //            X509Certificate caCert = reader.getCACert();
@@ -521,7 +516,7 @@ public class JSSPKIUtility extends PKIUtility {
             String line = f.format("R\t%s\t%s\t%s\tunknown\t%s",
                 getASN1Date(fakeExpiration),
                 getASN1Date(entry.getRevocationDate()),
-                entry.getSerialNumber(),
+                padSerial(entry.getSerialNumber()),
                 entry.getSubject()).toString();
             log.debug(line);
             writer.println(line);
@@ -555,12 +550,13 @@ public class JSSPKIUtility extends PKIUtility {
     }
 
     /**
-     * OpenSSL demands the string length of serials to be a non-zero multiple of 2. (?)
+     * OpenSSL requires serial numbers in hex form, with an even number of digits.
+     *
      * @param serial
      * @return Padded string representation of serial for use with openssl files.
      */
     private String padSerial(BigInteger serial) {
-        String serialStr = serial.toString();
+        String serialStr = serial.toString(16);
         if (serialStr.length() % 2 != 0) {
             serialStr = "0" + serialStr;
         }
