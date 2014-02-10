@@ -26,7 +26,7 @@ public class X509CRLEntryWrapper {
     private String subject;
 
     /**
-     * Instantiates a new simple crl entry.
+     * Instantiates a new simple CRL entry.
      *
      * @param serialNumber the serial number
      * @param revocationDate the revocation date

@@ -14,95 +14,21 @@
  */
 package org.candlepin.model;
 
-import java.util.List;
-
-import org.hibernate.criterion.Restrictions;
-
-import com.google.inject.persist.Transactional;
-
 /**
  * ConsumerContentOverrideCurator
  */
 public class ConsumerContentOverrideCurator
-    extends AbstractHibernateCurator<ConsumerContentOverride> {
+    extends ContentOverrideCurator<ConsumerContentOverride, Consumer> {
 
     public ConsumerContentOverrideCurator() {
-        super(ConsumerContentOverride.class);
+        super(ConsumerContentOverride.class, "consumer");
     }
 
-    @SuppressWarnings("unchecked")
-    public List<ConsumerContentOverride> getList(Consumer consumer) {
-        return currentSession()
-            .createCriteria(ConsumerContentOverride.class)
-            .add(Restrictions.eq("consumer", consumer)).list();
-    }
-
-    public void removeByName(Consumer consumer, String contentLabel, String name) {
-        List<ConsumerContentOverride> overrides = currentSession()
-            .createCriteria(ConsumerContentOverride.class)
-            .add(Restrictions.eq("consumer", consumer))
-            .add(Restrictions.eq("contentLabel", contentLabel))
-            .add(Restrictions.eq("name", name).ignoreCase()).list();
-        for (ConsumerContentOverride cco : overrides) {
-            delete(cco);
-        }
-    }
-
-    public void removeByContentLabel(Consumer consumer, String contentLabel) {
-        List<ConsumerContentOverride> overrides = currentSession()
-            .createCriteria(ConsumerContentOverride.class)
-            .add(Restrictions.eq("consumer", consumer))
-            .add(Restrictions.eq("contentLabel", contentLabel)).list();
-        for (ConsumerContentOverride cco : overrides) {
-            delete(cco);
-        }
-    }
-
-    public void removeByConsumer(Consumer consumer) {
-        List<ConsumerContentOverride> overrides = currentSession()
-            .createCriteria(ConsumerContentOverride.class)
-            .add(Restrictions.eq("consumer", consumer)).list();
-        for (ConsumerContentOverride cco : overrides) {
-            delete(cco);
-        }
-    }
-
-    public ConsumerContentOverride retrieve(Consumer consumer, String contentLabel,
-        String name) {
-        return (ConsumerContentOverride) currentSession()
-            .createCriteria(ConsumerContentOverride.class)
-            .add(Restrictions.eq("consumer", consumer))
-            .add(Restrictions.eq("contentLabel", contentLabel))
-            .add(Restrictions.eq("name", name).ignoreCase())
-            .setMaxResults(1).uniqueResult();
-    }
-
-    /* (non-Javadoc)
-     * @see org.candlepin.model.AbstractHibernateCurator#create(
-     *      org.candlepin.model.Persisted)
-     */
     @Override
-    @Transactional
-    public ConsumerContentOverride create(ConsumerContentOverride override) {
-        sanitize(override);
-        return super.create(override);
-    }
-
-    /* (non-Javadoc)
-     * @see org.candlepin.model.AbstractHibernateCurator#merge(
-     *     org.candlepin.model.Persisted)
-     */
-    @Override
-    @Transactional
-    public ConsumerContentOverride merge(ConsumerContentOverride override) {
-        sanitize(override);
-        return super.merge(override);
-    }
-
-    private void sanitize(ConsumerContentOverride override) {
-        // Always make sure that the name is lowercase.
-        if (override.getName() != null && !override.getName().isEmpty()) {
-            override.setName(override.getName().toLowerCase());
-        }
+    protected ConsumerContentOverride createWithParent(
+        ContentOverride override, Consumer parent) {
+        ConsumerContentOverride newOverride = new ConsumerContentOverride(
+            parent, override.getContentLabel(), override.getName(), override.getValue());
+        return this.create(newOverride);
     }
 }

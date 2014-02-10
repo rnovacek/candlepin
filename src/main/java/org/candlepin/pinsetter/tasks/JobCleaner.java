@@ -25,7 +25,8 @@ import com.google.inject.Inject;
 import com.google.inject.persist.UnitOfWork;
 
 /**
- * JobCleaner
+ * JobCleaner removes finished jobs older than yesterday, and failed
+ * jobs from 4 days ago.
  */
 public class JobCleaner extends KingpinJob {
 
@@ -40,11 +41,13 @@ public class JobCleaner extends KingpinJob {
 
     @Override
     public void toExecute(JobExecutionContext arg0) throws JobExecutionException {
-        //TODO: Configure deadline date to something else..
-        //CAUTION: jobCurator uses setDate on the delete query,
-        //so all time info is stripped off
+        // TODO: Configure deadline date to something else..
+        // CAUTION: jobCurator uses setDate on the delete query,
+        // so all time info is stripped off
         Date deadLineDt = Util.yesterday();
         this.jobCurator.cleanUpOldJobs(deadLineDt);
+        Date failedJobDeadLineDt = Util.addDaysToDt(-4);
+        this.jobCurator.cleanupFailedJobs(failedJobDeadLineDt);
     }
 
 }

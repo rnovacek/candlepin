@@ -19,8 +19,6 @@ import org.candlepin.auth.Access;
 import org.candlepin.auth.UserPrincipal;
 import org.candlepin.auth.permissions.OwnerPermission;
 import org.candlepin.auth.permissions.Permission;
-import org.candlepin.model.ActivationKey;
-import org.candlepin.model.ActivationKeyPool;
 import org.candlepin.model.CertificateSerial;
 import org.candlepin.model.Consumer;
 import org.candlepin.model.ConsumerType;
@@ -39,6 +37,8 @@ import org.candlepin.model.RulesCurator;
 import org.candlepin.model.Subscription;
 import org.candlepin.model.User;
 import org.candlepin.util.Util;
+import org.candlepin.model.activationkeys.ActivationKey;
+import org.candlepin.model.activationkeys.ActivationKeyPool;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

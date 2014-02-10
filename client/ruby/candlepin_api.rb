@@ -450,8 +450,14 @@ class Candlepin
     post("/owners/#{owner_key}/entitlements")
   end
 
-  def list_products
-    get("/products")
+  def list_products(product_uuids=nil)
+    method = "/products?"
+    if product_uuids
+      product_uuids.each { |uuid|
+        method << "&product=" << uuid
+      }
+    end
+    get(method)
   end
 
   def create_content(name, id, label, type, vendor,
@@ -863,6 +869,26 @@ class Candlepin
 
   def remove_pool_from_key(key_id, pool_id)
     return delete("/activation_keys/#{key_id}/pools/#{pool_id}")
+  end
+
+  def add_content_overrides_to_key(key_id, overrides)
+      return put("/activation_keys/#{key_id}/content_overrides", overrides)
+  end
+
+  def remove_activation_key_overrides(key_id, overrides)
+      return delete("/activation_keys/#{key_id}/content_overrides", overrides)
+  end
+
+  def get_content_overrides_for_key(key_id)
+      return get("/activation_keys/#{key_id}/content_overrides")
+  end
+
+  def set_activation_key_release(key_id, release)
+      return post("/activation_keys/#{key_id}/release", release)
+  end
+
+  def get_activation_key_release(key_id)
+      return get("/activation_keys/#{key_id}/release")
   end
 
   def list_certificates(serials = [])
