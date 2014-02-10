@@ -436,25 +436,6 @@ public class JSSPKIUtility extends PKIUtility {
             File crlResult = new File(workDir, OPENSSL_CRL_FILENAME);
             X509CRL crl = crlFileUtil.readCRLFile(crlResult);
             return crl;
-
-
-//            X509Certificate caCert = reader.getCACert();
-//            X509V2CRLGenerator generator = new X509V2CRLGenerator();
-//            generator.setIssuerDN(caCert.getIssuerX500Principal());
-//            generator.setThisUpdate(new Date());
-//            generator.setNextUpdate(Util.tomorrow());
-//            generator.setSignatureAlgorithm(SIGNATURE_ALGO);
-//            //add all the crl entries.
-//            for (X509CRLEntryWrapper entry : entries) {
-//                generator.addCRLEntry(entry.getSerialNumber(), entry.getRevocationDate(),
-//                    CRLReason.privilegeWithdrawn);
-//            }
-//            log.info("Completed adding CRL numbers to the certificate.");
-//            generator.addExtension(X509Extensions.AuthorityKeyIdentifier,
-//                false, new AuthorityKeyIdentifierStructure(caCert));
-//            generator.addExtension(X509Extensions.CRLNumber, false,
-//                new CRLNumber(crlNumber));
-//            return generator.generate(reader.getCaKey());
         }
         catch (Exception e) {
             throw new RuntimeException(e);
@@ -574,13 +555,9 @@ public class JSSPKIUtility extends PKIUtility {
             "# http://swearingscience.com/2009/01/18/openssl-self-signed-ca/\n" +
             "\n" +
             "[ ca ]\n" +
-            "default_ca = myca\n" +
+            "default_ca = CA_default\n" +
             "\n" +
-            "[ crl_ext ]\n" +
-            "# issuerAltName=issuer:copy  #this would copy the issuer name to altname\n" +
-            "authorityKeyIdentifier=keyid:always\n" +
-            "\n" +
-            " [ myca ]\n" +
+            " [ CA_default ]\n" +
             " dir = " + workDir.getAbsolutePath() + "\n" +
             " new_certs_dir = $dir\n" +
             " unique_subject = no\n" +
@@ -594,6 +571,7 @@ public class JSSPKIUtility extends PKIUtility {
             " x509_extensions = myca_extensions\n" +
             " crlnumber = $dir/crlnumber\n" +
             " default_crl_days = 730\n" +
+            " crl_extensions = crl_ext\n" +
             "\n" +
             " [ myca_policy ]\n" +
             " commonName = supplied\n" +
@@ -611,6 +589,9 @@ public class JSSPKIUtility extends PKIUtility {
             " extendedKeyUsage = serverAuth\n" +
             " crlDistributionPoints = URI:http://example.com/root.crl\n" +
             " subjectAltName  = @alt_names\n" +
+            "\n" +
+            "[ crl_ext ]\n" +
+            "authorityKeyIdentifier=keyid:always,issuer:always\n" +
             "\n" +
             " [alt_names]\n" +
             " DNS.1 = example.com\n" +
