@@ -551,51 +551,24 @@ public class JSSPKIUtility extends PKIUtility {
 
     private File writeOpensslConfig(File workDir) throws
     FileNotFoundException, UnsupportedEncodingException {
-        String fileContents = "# Mainly copied from:\n" +
-            "# http://swearingscience.com/2009/01/18/openssl-self-signed-ca/\n" +
-            "\n" +
+        String fileContents =
             "[ ca ]\n" +
             "default_ca = CA_default\n" +
             "\n" +
-            " [ CA_default ]\n" +
-            " dir = " + workDir.getAbsolutePath() + "\n" +
-            " new_certs_dir = $dir\n" +
-            " unique_subject = no\n" +
-            " certificate = $dir/ca.crt\n" +
-            " database = $dir/certindex\n" +
-            " private_key = $dir/ca.key\n" +
-            " serial = $dir/certserial\n" +
-            " default_days = 730\n" +
-            " default_md = sha1\n" +
-            " policy = myca_policy\n" +
-            " x509_extensions = myca_extensions\n" +
-            " crlnumber = $dir/crlnumber\n" +
-            " default_crl_days = 730\n" +
-            " crl_extensions = crl_ext\n" +
-            "\n" +
-            " [ myca_policy ]\n" +
-            " commonName = supplied\n" +
-            " stateOrProvinceName = supplied\n" +
-            " countryName = optional\n" +
-            " emailAddress = optional\n" +
-            " organizationName = supplied\n" +
-            " organizationalUnitName = optional\n" +
-            "\n" +
-            " [ myca_extensions ]\n" +
-            " basicConstraints = CA:false\n" +
-            " subjectKeyIdentifier = hash\n" +
-            " authorityKeyIdentifier = keyid:always\n" +
-            " keyUsage = digitalSignature,keyEncipherment\n" +
-            " extendedKeyUsage = serverAuth\n" +
-            " crlDistributionPoints = URI:http://example.com/root.crl\n" +
-            " subjectAltName  = @alt_names\n" +
+            "[ CA_default ]\n" +
+            "dir = " + workDir.getAbsolutePath() + "\n" +
+            "certificate = $dir/ca.crt\n" +
+            "database = $dir/certindex\n" +
+            "private_key = $dir/ca.key\n" +
+            "serial = $dir/certserial\n" +
+            "default_days = 730\n" +
+            "default_md = sha1\n" +
+            "crlnumber = $dir/crlnumber\n" +
+            "crl_extensions = crl_ext\n" +
+            "default_crl_days = 730\n" +
             "\n" +
             "[ crl_ext ]\n" +
-            "authorityKeyIdentifier=keyid:always,issuer:always\n" +
-            "\n" +
-            " [alt_names]\n" +
-            " DNS.1 = example.com\n" +
-            " DNS.2 = *.example.com";
+            "authorityKeyIdentifier=keyid:always,issuer:always\n";
         File config = new File(workDir, OPENSSL_CONF_FILENAME);
         log.debug("Writing OpenSSL config file: {}", config.getAbsolutePath());
         PrintWriter writer = new PrintWriter(config, "UTF-8");
