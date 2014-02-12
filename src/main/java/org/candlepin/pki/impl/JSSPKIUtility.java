@@ -561,11 +561,10 @@ public class JSSPKIUtility extends PKIUtility {
             "database = $dir/certindex\n" +
             "private_key = $dir/ca.key\n" +
             "serial = $dir/certserial\n" +
-            "default_days = 730\n" +
             "default_md = sha1\n" +
             "crlnumber = $dir/crlnumber\n" +
             "crl_extensions = crl_ext\n" +
-            "default_crl_days = 730\n" +
+            "default_crl_days = 1\n" +
             "\n" +
             "[ crl_ext ]\n" +
             "authorityKeyIdentifier=keyid:always,issuer:always\n";
