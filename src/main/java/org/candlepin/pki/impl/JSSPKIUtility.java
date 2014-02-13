@@ -16,6 +16,7 @@ package org.candlepin.pki.impl;
 
 import com.google.inject.Inject;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.bouncycastle.asn1.ASN1EncodableVector;
 import org.bouncycastle.asn1.ASN1InputStream;
@@ -130,29 +131,26 @@ import javax.naming.ldap.Rdn;
 public class JSSPKIUtility extends PKIUtility {
     private static Logger log = LoggerFactory.getLogger(JSSPKIUtility.class);
 
-    public static final String SUBJECT_ALT_NAME_OID = "2.5.29.17";
-    public static final String KEY_USAGE_OID = "2.5.29.15";
-    public static final String AUTHORITY_KEY_IDENTIFIER_OID = "2.5.29.35";
-    public static final String SUBJECT_KEY_IDENTIFIER_OID = "2.5.29.14";
-    public static final String EXTENDED_KEY_USAGE_OID = "2.5.29.37";
-    public static final String NETSCAPE_CERT_TYPE_OID = "2.16.840.1.113730.1.1";
+    private static final String SUBJECT_ALT_NAME_OID = "2.5.29.17";
+    private static final String KEY_USAGE_OID = "2.5.29.15";
+    private static final String AUTHORITY_KEY_IDENTIFIER_OID = "2.5.29.35";
+    private static final String SUBJECT_KEY_IDENTIFIER_OID = "2.5.29.14";
+    private static final String EXTENDED_KEY_USAGE_OID = "2.5.29.37";
+    private static final String NETSCAPE_CERT_TYPE_OID = "2.16.840.1.113730.1.1";
 
     private static final String OPENSSL_INDEX_FILENAME = "certindex";
     private static final String OPENSSL_CRL_NUMBER_FILENAME = "crlnumber";
     private static final String OPENSSL_CONF_FILENAME = "openssl.conf";
     private static final String OPENSSL_CRL_FILENAME = "crl.pem";
 
-
     private static final String ASN1_DATE_FORMAT = "yyMMddHHmmss'Z'";
 
     private final File baseDir;
-    private Config config;
     private CrlFileUtil crlFileUtil;
 
     @Inject
     public JSSPKIUtility(PKIReader reader, Config config, CrlFileUtil crlFileUtil) {
         super(reader);
-        this.config = config;
         this.crlFileUtil = crlFileUtil;
 
         // Make sure the base CRL work dir exists:
@@ -245,7 +243,7 @@ public class JSSPKIUtility extends PKIUtility {
     }
 
     /*
-     * Add the authority key sequence to the certificate.
+     * Add the authority key identifier sequence to the certificate.
      *
      * AKI is a sequence of three elements, the SHA1 of the CA public key, the issuer,
      * and the CA cert serial.
@@ -407,7 +405,6 @@ public class JSSPKIUtility extends PKIUtility {
     /*
      * JSS provides no mechanism to generate CRLs. Instead of writing our own solution,
      * for now we will shellout to openssl to generate.
-     *
      */
     @Override
     public X509CRL createX509CRL(List<X509CRLEntryWrapper> entries, BigInteger crlNumber) {
@@ -415,6 +412,8 @@ public class JSSPKIUtility extends PKIUtility {
         try {
             // Make a temporary directory where we'll do our openssl work:
             File workDir = makeTempWorkDir();
+            log.debug("Created temporary CRL dir: {}",
+                workDir.getAbsolutePath());
             writeOpensslIndexFiles(workDir, entries);
             File configFile = writeOpensslConfig(workDir);
             writeOpensslCRLNumberFile(workDir, crlNumber);
@@ -435,6 +434,16 @@ public class JSSPKIUtility extends PKIUtility {
             // Now we read the CRL PEM and return the resulting object:
             File crlResult = new File(workDir, OPENSSL_CRL_FILENAME);
             X509CRL crl = crlFileUtil.readCRLFile(crlResult);
+
+            try {
+                log.debug("Cleaning up temporary CRL dir: {}", workDir.getAbsolutePath());
+                FileUtils.deleteDirectory(workDir);
+            }
+            catch (IOException io) {
+                log.error("Unable to delete temporary CRL dir: " +
+                    workDir.getAbsolutePath(), io);
+            }
+
             return crl;
         }
         catch (Exception e) {
