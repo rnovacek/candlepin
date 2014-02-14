@@ -76,11 +76,6 @@ public class JSSPKIUtilityTest {
         entries.add(new X509CRLEntryWrapper(serial2, new Date()));
         X509CRL crl = pkiUtility.createX509CRL(entries, new BigInteger("1"));
 
-        crl.getRevokedCertificates();
-        for (X509CRLEntry e : crl.getRevokedCertificates()) {
-            System.out.println(e.getSerialNumber());
-        }
-
         X509CRLEntry crlEntry1 = crl.getRevokedCertificate(
             entries.get(0).getSerialNumber());
         assertNotNull(crlEntry1);
@@ -98,9 +93,4 @@ public class JSSPKIUtilityTest {
             configuration.put(ConfigProperties.CRL_WORK_DIR, "/tmp/");
         }
     }
-
-    // test CRL 0
-    // test CRL higher
-    // test multiple serials
-    // test directory cleanup
 }

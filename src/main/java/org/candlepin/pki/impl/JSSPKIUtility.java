@@ -232,13 +232,13 @@ public class JSSPKIUtility extends PKIUtility {
             return (X509Certificate) certFactory.generateCertificate(bis);
         }
         catch (InvalidBERException e) {
-            throw new GeneralSecurityException(e);
+            throw new RuntimeException(e);
         }
         catch (NotInitializedException e) {
-            throw new GeneralSecurityException(e);
+            throw new RuntimeException(e);
         }
         catch (TokenException e) {
-            throw new GeneralSecurityException(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -373,6 +373,7 @@ public class JSSPKIUtility extends PKIUtility {
         catch (CharConversionException e) {
             // TODO: look at all error handling in here
             log.error("CharConversionException", e);
+            throw new RuntimeException(e);
         }
 
         Extension ext = new Extension(
@@ -395,11 +396,12 @@ public class JSSPKIUtility extends PKIUtility {
         }
         catch (NoSuchAlgorithmException e) {
             log.error("NoSuchAlgorithmException:", e);
+            throw new RuntimeException(e);
         }
         catch (NoSuchProviderException e) {
             log.error("NoSuchProviderException:", e);
+            throw new RuntimeException(e);
         }
-        return new byte[0];
     }
 
     /*
@@ -440,6 +442,8 @@ public class JSSPKIUtility extends PKIUtility {
                 FileUtils.deleteDirectory(workDir);
             }
             catch (IOException io) {
+                // Everything likely succeeded except deleting the CRL dir, will log
+                // and ignore this exception.
                 log.error("Unable to delete temporary CRL dir: " +
                     workDir.getAbsolutePath(), io);
             }
@@ -469,12 +473,14 @@ public class JSSPKIUtility extends PKIUtility {
             baseDir);
 
         if (!tmp.delete()) {
-            throw new IOException("Could not delete temp file: " + tmp.getAbsolutePath());
+            throw new RuntimeException("Could not delete temp file: " +
+                tmp.getAbsolutePath());
         }
 
         if (!tmp.mkdirs()) {
-            throw new IOException("Could not create temp directory for CRL generation: " +
-                tmp.getAbsolutePath());
+            throw new RuntimeException(
+                "Could not create temp directory for CRL generation: " +
+                    tmp.getAbsolutePath());
         }
 
         return (tmp);
@@ -606,6 +612,7 @@ public class JSSPKIUtility extends PKIUtility {
                 }
                 catch (IOException e) {
                     log.warn("failed to close ASN1 stream", e);
+                    throw new RuntimeException(e);
                 }
             }
 
@@ -615,6 +622,7 @@ public class JSSPKIUtility extends PKIUtility {
                 }
                 catch (IOException e) {
                     log.warn("failed to close ASN1 stream", e);
+                    throw new RuntimeException(e);
                 }
             }
         }
@@ -626,7 +634,6 @@ public class JSSPKIUtility extends PKIUtility {
             LdapName ldapName = new LdapName(nameString);
             for (Rdn rdn : ldapName.getRdns()) {
                 String type = rdn.getType().toUpperCase();
-                log.error(type);
                 if (type.equals("CN")) {
                     name.addCommonName((String) rdn.getValue());
                 }
@@ -649,10 +656,11 @@ public class JSSPKIUtility extends PKIUtility {
         }
         catch (InvalidNameException e) {
             log.error("Found invalid Distinuguished Name " + name, e);
+            throw new RuntimeException(e);
         }
         catch (CharConversionException e) {
-            // TODO Auto-generated catch block
             log.error("Found invalid Distinuguished Name " + name, e);
+            throw new RuntimeException(e);
         }
 
         return name;

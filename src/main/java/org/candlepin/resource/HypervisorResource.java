@@ -80,7 +80,6 @@ public class HypervisorResource {
      *
      * @httpcode 202
      * @httpcode 200
-     *
      */
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
