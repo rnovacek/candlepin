@@ -104,6 +104,7 @@ BuildRequires: postgresql-jdbc
 BuildRequires: servlet
 BuildRequires: gettext-commons
 BuildRequires: jta
+BuildRequires: jss
 
 # resteasy multipart requires this at runtime
 BuildRequires: apache-mime4j
@@ -157,6 +158,7 @@ Requires: javamail
 Requires: javassist >= 3.12.0
 Requires: commons-collections >= 3.1
 Requires: jta
+Requires: jss
 %endif
 %define __jar_repack %{nil}
 
