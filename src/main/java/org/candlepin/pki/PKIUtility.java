@@ -28,6 +28,7 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
@@ -89,7 +90,18 @@ public abstract class PKIUtility {
     }
 
     public KeyPair generateNewKeyPair() throws NoSuchAlgorithmException {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        KeyPairGenerator generator;
+        try {
+            generator = KeyPairGenerator.getInstance("RSA", "SunRsaSign");
+        }
+        catch (NoSuchProviderException e) {
+            log.error(
+                "Error getting RSA keypair generator from SunRsaSign provider",
+                e);
+            log.error("Falling back on non-provider specific getInstance");
+            generator = KeyPairGenerator.getInstance("RSA");
+        }
+
         generator.initialize(RSA_KEY_SIZE);
         return generator.generateKeyPair();
     }
