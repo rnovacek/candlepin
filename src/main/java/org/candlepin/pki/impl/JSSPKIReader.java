@@ -130,8 +130,10 @@ public class JSSPKIReader implements PKIReader {
 
     private void loadCA() throws CertificateException {
         try {
+            String certNickname = this.caKeyTokenPrefix + this.pKeyAlias;
+            log.info("Attempting to load NSS certificate: {}", certNickname);
             org.mozilla.jss.crypto.X509Certificate jssCert = this.cryptoManager
-                .findCertByNickname(this.caKeyTokenPrefix + this.pKeyAlias);
+                .findCertByNickname(certNickname);
             ByteArrayInputStream bis = new ByteArrayInputStream(
                 jssCert.getEncoded());
             this.caCert = (X509Certificate) certFactory
