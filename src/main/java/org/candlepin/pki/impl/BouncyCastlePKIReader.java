@@ -14,10 +14,21 @@
  */
 package org.candlepin.pki.impl;
 
-import java.io.File;
+import org.candlepin.config.Config;
+import org.candlepin.config.ConfigProperties;
+import org.candlepin.pki.PKIReader;
+import org.candlepin.util.Util;
+
+import com.google.inject.Inject;
+
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.PEMReader;
+import org.bouncycastle.openssl.PasswordFinder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -26,18 +37,7 @@ import java.security.Security;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.HashSet;
 import java.util.Set;
-
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMReader;
-import org.bouncycastle.openssl.PasswordFinder;
-import org.candlepin.config.Config;
-import org.candlepin.config.ConfigProperties;
-import org.candlepin.pki.PKIReader;
-import org.candlepin.util.Util;
-
-import com.google.inject.Inject;
 
 /**
  * The default {@link PKIReader} for Candlepin.  This reads the file paths for
@@ -64,7 +64,8 @@ import com.google.inject.Inject;
  *
  * See also {@link BouncyCastlePKIUtility} for more notes.
  */
-public class BouncyCastlePKIReader implements PKIReader, PasswordFinder {
+public class BouncyCastlePKIReader extends PKIReader implements PasswordFinder {
+    private static Logger log = LoggerFactory.getLogger(BouncyCastlePKIReader.class);
 
     private CertificateFactory certFactory;
     private String caCertPath;
@@ -75,12 +76,20 @@ public class BouncyCastlePKIReader implements PKIReader, PasswordFinder {
     private final Set<X509Certificate> upstreamX509Certificates;
     private final PrivateKey privateKey;
 
+    // Don't even load the web app if we can't find BouncyCastle
     static {
-        Security.addProvider(new BouncyCastleProvider());
+        try {
+            Class.forName("org.bouncycastle.jce.provider.BouncyCastleProvider");
+        }
+        catch (ClassNotFoundException e) {
+            log.error("Could not find BouncyCastleProvider", e);
+            throw new IllegalStateException("Could not find BouncyCastleProvider", e);
+        }
     }
 
     @Inject
     public BouncyCastlePKIReader(Config config) throws CertificateException {
+        log.error("BC at {}", Security.addProvider(new BouncyCastleProvider()));
         certFactory = CertificateFactory.getInstance("X.509");
         this.caCertPath = config.getString(ConfigProperties.CA_CERT);
         this.upstreamCaCertPath = config.getString(ConfigProperties.CA_CERT_UPSTREAM);
@@ -94,63 +103,9 @@ public class BouncyCastlePKIReader implements PKIReader, PasswordFinder {
         this.upstreamX509Certificates = loadUpstreamCACertificates(upstreamCaCertPath);
         this.privateKey = loadPrivateKey();
     }
-    /**
-     * @return
-     */
-    private X509Certificate loadCACertificate(String path) {
-        InputStream inStream = null;
-        try {
-            inStream = new FileInputStream(path);
-            X509Certificate cert = (X509Certificate) this.certFactory
-                .generateCertificate(inStream);
-            inStream.close();
-            return cert;
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        finally {
-            try {
-                if (inStream != null) {
-                    inStream.close();
-                }
-            }
-            catch (IOException e) {
-                // ignore. there's nothing we can do.
-            }
-        }
-    }
 
-    private Set<X509Certificate> loadUpstreamCACertificates(String path) {
-        InputStream inStream = null;
-        Set<X509Certificate> result = new HashSet<X509Certificate>();
-        File dir = new File(path);
-        if (!dir.exists()) {
-            return result;
-        }
-        for (File file : dir.listFiles()) {
-            try {
-                inStream = new FileInputStream(file.getAbsolutePath());
-                X509Certificate cert = (X509Certificate) this.certFactory
-                    .generateCertificate(inStream);
-                inStream.close();
-                result.add(cert);
-            }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            finally {
-                try {
-                    if (inStream != null) {
-                        inStream.close();
-                    }
-                }
-                catch (IOException e) {
-                    // ignore. there's nothing we can do.
-                }
-            }
-        }
-        return result;
+    protected CertificateFactory getCertFactory() {
+        return certFactory;
     }
 
     /**

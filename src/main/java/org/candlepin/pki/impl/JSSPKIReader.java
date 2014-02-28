@@ -14,175 +14,224 @@
  */
 package org.candlepin.pki.impl;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.security.GeneralSecurityException;
-import java.security.PrivateKey;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.util.HashSet;
-import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.candlepin.config.Config;
 import org.candlepin.config.ConfigProperties;
 import org.candlepin.pki.PKIReader;
-import org.candlepin.util.Util;
-import org.mozilla.jss.CryptoManager;
-import org.mozilla.jss.CryptoManager.NotInitializedException;
-import org.mozilla.jss.crypto.ObjectNotFoundException;
-import org.mozilla.jss.crypto.TokenException;
 
 import com.google.inject.Inject;
 
-/**
- * DefaultPKIReader. This reads a java keystore in PKCS12 format. The private
- * key and CA certificate are extracted from the keystore and used by the
- * utility to generate certificates
- */
-public class JSSPKIReader implements PKIReader {
+import org.apache.commons.io.IOUtils;
+import org.mozilla.jss.CryptoManager;
+import org.mozilla.jss.asn1.ANY;
+import org.mozilla.jss.asn1.ASN1Value;
+import org.mozilla.jss.asn1.BMPString;
+import org.mozilla.jss.asn1.InvalidBERException;
+import org.mozilla.jss.asn1.SEQUENCE;
+import org.mozilla.jss.asn1.SET;
+import org.mozilla.jss.pkcs12.AuthenticatedSafes;
+import org.mozilla.jss.pkcs12.PFX;
+import org.mozilla.jss.pkcs12.PasswordConverter;
+import org.mozilla.jss.pkcs12.SafeBag;
+import org.mozilla.jss.pkix.primitive.Attribute;
+import org.mozilla.jss.pkix.primitive.EncryptedPrivateKeyInfo;
+import org.mozilla.jss.pkix.primitive.PrivateKeyInfo;
+import org.mozilla.jss.util.Password;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.Provider;
+import java.security.Security;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.util.Arrays;
+import java.util.Set;
+
+/**
+ * This class will not work if CryptoManager.initialize has not been called!
+ */
+public class JSSPKIReader extends PKIReader {
     private static Logger log = LoggerFactory.getLogger(JSSPKIReader.class);
 
     private CertificateFactory certFactory;
-    // Location for upstream certificates
-    private String upstreamCaCertPath;
-    // Password to unlock the private key
-    private String caKeyPassword;
-    private String caKeyTokenPrefix;
-    // The name (alias) the key is stored under.
-    private String pKeyAlias;
-    private PrivateKey pKey;
+    private KeyPair keyPair;
     private X509Certificate caCert;
     private Set<X509Certificate> upstreamX509Certificates;
-    private CryptoManager cryptoManager;
-
-    static {
-        try {
-            CryptoManager.initialize("sql:/etc/pki/nssdb");
-        }
-        catch (Exception e) {
-            log.error("Exception during itialization", e);
-        }
-    }
 
     @Inject
-    public JSSPKIReader(Config config) throws CertificateException {
+    public JSSPKIReader(Config config, CryptoManager manager) throws GeneralSecurityException {
+        String upstreamCaCertPath = config.getString(ConfigProperties.CA_CERT_UPSTREAM);
+        String caPath = config.getString(ConfigProperties.CA_CERT);
+        String passwordPath = config.getString(ConfigProperties.CA_KEYSTORE_PASSWORD_FILE);
+        String keystorePath = config.getString(ConfigProperties.CA_KEYSTORE);
+        String nickname = config.getString(ConfigProperties.CA_KEYSTORE_NICKNAME);
 
         try {
-            this.cryptoManager = CryptoManager.getInstance();
-            log.info("FIPS status is " + cryptoManager.FIPSEnabled());
             certFactory = CertificateFactory.getInstance("X.509");
+
+            Reader passwordReader = new FileReader(
+                new File(passwordPath));
+            InputStream keystoreStream = new BufferedInputStream(
+                new FileInputStream(new File(keystorePath)), 2048);
+
+            keyPair = getPrivateKey(passwordReader, keystoreStream, nickname);
+            passwordReader.close();
         }
-        catch (NotInitializedException e) {
-            log.error("Crypto Manager not initialized", e);
-            throw new CertificateException(e);
+        catch (FileNotFoundException e) {
+            throw new GeneralSecurityException(e);
+        }
+        catch (InvalidKeyException e) {
+            throw new GeneralSecurityException(e);
+        }
+        catch (IOException e) {
+            throw new GeneralSecurityException(e);
         }
 
-        this.upstreamCaCertPath = config
-            .getString(ConfigProperties.CA_CERT_UPSTREAM);
-        log.debug("Using caCertPath " + this.upstreamCaCertPath);
-        this.pKeyAlias = config.getString(ConfigProperties.CA_ALIAS);
-        log.debug("Using key alias " + this.pKeyAlias);
-        Util.assertNotNull(this.pKeyAlias,
-            "pKeyAlias cannot be null. Unable to load CA Certificate");
-        this.caKeyTokenPrefix = config
-            .getString(ConfigProperties.CA_TOKEN_PREFIX);
-        this.caKeyPassword = config.getString(ConfigProperties.CA_KEY_PASSWORD);
-        this.upstreamX509Certificates = this
-            .loadUpstreamCACertificates(this.upstreamCaCertPath);
-        this.loadCA();
+        upstreamX509Certificates = loadUpstreamCACertificates(upstreamCaCertPath);
+        caCert = loadCACertificate(caPath);
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.candlepin.pki.PKIReader#getCACert()
-     */
-    @Override
-    public X509Certificate getCACert() throws IOException, CertificateException {
-        return this.caCert;
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.candlepin.pki.PKIReader#getUpstreamCACerts()
-     */
-    @Override
-    public Set<X509Certificate> getUpstreamCACerts() throws IOException,
-        CertificateException {
-        return this.upstreamX509Certificates;
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.candlepin.pki.PKIReader#getCaKey()
-     */
-    @Override
-    public PrivateKey getCaKey() throws IOException, GeneralSecurityException {
-        return this.pKey;
-    }
-
-    private void loadCA() throws CertificateException {
+    private KeyPair getPrivateKey(Reader passwordReader, InputStream keystoreStream,
+        String nickname) throws GeneralSecurityException {
         try {
-            String certNickname = this.caKeyTokenPrefix + this.pKeyAlias;
-            log.info("Attempting to load NSS certificate: {}", certNickname);
-            org.mozilla.jss.crypto.X509Certificate jssCert = this.cryptoManager
-                .findCertByNickname(certNickname);
-            ByteArrayInputStream bis = new ByteArrayInputStream(
-                jssCert.getEncoded());
-            this.caCert = (X509Certificate) certFactory
-                .generateCertificate(bis);
+            PFX.Template template = new PFX.Template();
+            PFX keystore = (PFX) template.decode(keystoreStream);
 
-            this.pKey = this.cryptoManager.findPrivKeyByCert(jssCert);
-        }
-        catch (TokenException e) {
-            log.error("Error Accessing JSS CryptoManager", e);
-            throw new CertificateException(e);
-        }
-        catch (ObjectNotFoundException e) {
-            log.error("Error Accessing JSS CryptoManager", e);
-            throw new CertificateException(e);
-        }
+            AuthenticatedSafes authSafes = keystore.getAuthSafes();
+            SEQUENCE safesSequence = authSafes.getSequence();
 
-    }
+            char[] passwordArray = IOUtils.toString(passwordReader).trim().toCharArray();
+            Password password = new Password(passwordArray);
+            for (int i = 0; i < safesSequence.size(); i++) {
+                SEQUENCE contents = authSafes.getSafeContentsAt(password, i);
+                for (int j = 0; j < contents.size(); j++) {
+                    SafeBag safeBag = (SafeBag) contents.elementAt(j);
 
-    private Set<X509Certificate> loadUpstreamCACertificates(String path) {
-        InputStream inStream = null;
-        Set<X509Certificate> result = new HashSet<X509Certificate>();
-        File dir = new File(path);
-        if (!dir.exists()) {
-            return result;
-        }
-        for (File file : dir.listFiles()) {
-            try {
-                inStream = new FileInputStream(file.getAbsolutePath());
-                X509Certificate cert = (X509Certificate) this.certFactory
-                    .generateCertificate(inStream);
-                inStream.close();
-                result.add(cert);
-            }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            finally {
-                try {
-                    if (inStream != null) {
-                        inStream.close();
+                    if (entryMatchesName(safeBag, nickname)) {
+
+                        ASN1Value asnVal = safeBag.getInterpretedBagContent();
+
+                        if (asnVal instanceof PrivateKeyInfo) {
+                            return extractPrivateKeyFromCertBag((PrivateKeyInfo) asnVal);
+                        }
+                        else if (asnVal instanceof EncryptedPrivateKeyInfo) {
+                            return extractEncryptedPrivateKeyFromCertBag(
+                                (EncryptedPrivateKeyInfo) asnVal, password);
+                        }
                     }
                 }
-                catch (IOException e) {
-                    // ignore. there's nothing we can do.
-                }
             }
         }
-        return result;
+        catch (GeneralSecurityException e) {
+            throw e;
+        }
+        catch (Exception e) {
+            // getSafeContentsAt() has a billion checked exceptions so catch them all
+            throw new InvalidKeyException(e);
+        }
+        throw new GeneralSecurityException("Could not find matching key in PKCS12 keystore!");
     }
 
+    private boolean entryMatchesName(SafeBag safeBag, String nickname) throws InvalidBERException {
+        SET attrs = safeBag.getBagAttributes();
+        if (attrs == null) {
+            return false;
+        }
+
+        for (int i = 0; i < attrs.size(); i++) {
+            Attribute a = (Attribute) attrs.elementAt(i);
+            if (SafeBag.FRIENDLY_NAME.equals(a.getType())) {
+                BMPString bs = (BMPString) ((ANY) a.getValues().elementAt(0))
+                    .decodeWith(BMPString.getTemplate());
+                return nickname.equals(bs.toString());
+            }
+        }
+        return false;
+    }
+
+    private KeyPair extractEncryptedPrivateKeyFromCertBag(EncryptedPrivateKeyInfo epki,
+        Password password) throws GeneralSecurityException {
+        try {
+            PrivateKeyInfo pki = epki.decrypt(password, new PasswordConverter());
+            return extractPrivateKeyFromCertBag(pki);
+        }
+        catch (GeneralSecurityException e) {
+            throw e;
+        }
+        catch (Exception e) {
+            throw new GeneralSecurityException(e);
+        }
+    }
+
+    private KeyPair extractPrivateKeyFromCertBag(PrivateKeyInfo pki) throws GeneralSecurityException {
+        for (Provider p : Arrays.asList(Security.getProviders())) {
+            log.info("Provider is {}", p.getName());
+        }
+
+        try {
+            KeyFactory rsaKeyFactory = KeyFactory.getInstance("RSA");
+            log.info(pki.getFormat());
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            pki.encode(baos);
+
+            KeySpec pkcs8Spec = new PKCS8EncodedKeySpec(baos.toByteArray());
+            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey)
+                rsaKeyFactory.generatePrivate(pkcs8Spec);
+            RSAPublicKeySpec pubSpec = new RSAPublicKeySpec(
+                privateKey.getModulus(), privateKey.getPublicExponent());
+
+            return new KeyPair(
+                rsaKeyFactory.generatePublic(pubSpec),
+                privateKey);
+        }
+        catch (IOException e) {
+            throw new GeneralSecurityException(e);
+        }
+        catch (NoSuchAlgorithmException e) {
+            throw new GeneralSecurityException(e);
+        }
+        catch (InvalidKeySpecException e) {
+            throw new GeneralSecurityException(e);
+        }
+    }
+
+    @Override
+    protected CertificateFactory getCertFactory() {
+        return certFactory;
+    }
+
+    @Override
+    public X509Certificate getCACert() {
+        return caCert;
+    }
+
+    @Override
+    public Set<X509Certificate> getUpstreamCACerts() {
+        return upstreamX509Certificates;
+    }
+
+    @Override
+    public PrivateKey getCaKey() {
+        return keyPair.getPrivate();
+    }
 }
 

@@ -16,7 +16,10 @@ package org.candlepin.pki.impl;
 
 import org.candlepin.config.Config;
 import org.candlepin.config.ConfigProperties;
+
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.cert.CertificateException;
 import java.util.HashMap;
@@ -26,12 +29,12 @@ import java.util.HashMap;
  * BouncyCastlePKIReaderTest
  */
 public class BouncyCastlePKIReaderTest {
+    private static Logger log = LoggerFactory.getLogger(BouncyCastlePKIReaderTest.class);
 
     @Test
     public void readkey() throws CertificateException {
         Config config = new Config(
             new HashMap<String, String>() {
-
                 {
                     put(ConfigProperties.CA_CERT,
                         "target/test/resources/certs/test.crt");
@@ -44,5 +47,4 @@ public class BouncyCastlePKIReaderTest {
             });
         new BouncyCastlePKIReader(config);
     }
-
 }

@@ -351,9 +351,7 @@ public class JSSPKIUtility extends PKIUtility {
         throws  CertificateException {
         byte[] value = wrapper.getValue() == null ? new byte[0] :
             wrapper.getValue();
-
         OCTET_STRING extValue = new OCTET_STRING(value);
-
 
         Extension ext = new Extension(
             new OBJECT_IDENTIFIER(wrapper.getOid()),
@@ -410,7 +408,6 @@ public class JSSPKIUtility extends PKIUtility {
      */
     @Override
     public X509CRL createX509CRL(List<X509CRLEntryWrapper> entries, BigInteger crlNumber) {
-
         try {
             // Make a temporary directory where we'll do our openssl work:
             File workDir = makeTempWorkDir();
@@ -664,6 +661,5 @@ public class JSSPKIUtility extends PKIUtility {
         }
 
         return name;
-
     }
 }

@@ -14,18 +14,22 @@
  */
 package org.candlepin.pki;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
  * A generic mechanism for reading CA certificates from an underlying datastore.
  */
-public interface PKIReader {
-
+public abstract class PKIReader {
     /**
      * Supplies the CA's {@link X509Certificate}.
      *
@@ -33,9 +37,10 @@ public interface PKIReader {
      * @throws IOException if a file can't be read or is not found
      * @throws CertificateException  if there is an error from the underlying cert factory
      */
-    X509Certificate getCACert() throws IOException, CertificateException;
+    public abstract X509Certificate getCACert() throws IOException, CertificateException;
 
-    Set<X509Certificate> getUpstreamCACerts()  throws IOException, CertificateException;
+    public abstract Set<X509Certificate> getUpstreamCACerts()
+        throws IOException, CertificateException;
 
     /**
      * Supplies the CA's {@link PrivateKey}.
@@ -44,6 +49,63 @@ public interface PKIReader {
      * @throws IOException if a file can't be read or is not found
      * @throws GeneralSecurityException if something violated policy
      */
-    PrivateKey getCaKey() throws IOException, GeneralSecurityException;
+    public abstract PrivateKey getCaKey() throws IOException, GeneralSecurityException;
 
+    protected X509Certificate loadCACertificate(String path) {
+        InputStream inStream = null;
+        try {
+            inStream = new FileInputStream(path);
+            X509Certificate cert = (X509Certificate) getCertFactory()
+                .generateCertificate(inStream);
+            inStream.close();
+            return cert;
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        finally {
+            try {
+                if (inStream != null) {
+                    inStream.close();
+                }
+            }
+            catch (IOException e) {
+                // ignore. there's nothing we can do.
+            }
+        }
+    }
+
+    protected Set<X509Certificate> loadUpstreamCACertificates(String path) {
+        InputStream inStream = null;
+        Set<X509Certificate> result = new HashSet<X509Certificate>();
+        File dir = new File(path);
+        if (!dir.exists()) {
+            return result;
+        }
+        for (File file : dir.listFiles()) {
+            try {
+                inStream = new FileInputStream(file.getAbsolutePath());
+                X509Certificate cert = (X509Certificate) getCertFactory()
+                    .generateCertificate(inStream);
+                inStream.close();
+                result.add(cert);
+            }
+            catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            finally {
+                try {
+                    if (inStream != null) {
+                        inStream.close();
+                    }
+                }
+                catch (IOException e) {
+                    // ignore. there's nothing we can do.
+                }
+            }
+        }
+        return result;
+    }
+
+    protected abstract CertificateFactory getCertFactory();
 }

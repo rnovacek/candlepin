@@ -44,6 +44,8 @@ public class ConfigProperties {
     public static final String CA_KEY = "candlepin.ca_key";
     public static final String CA_CERT = "candlepin.ca_cert";
     public static final String CA_KEYSTORE = "candlepin.keystore";
+    public static final String CA_KEYSTORE_PASSWORD_FILE = "candlepin.keystore_password_file";
+    public static final String CA_KEYSTORE_NICKNAME = "candlepin.ca_keystore_nickname";
     public static final String FAIL_ON_UNKNOWN_IMPORT_PROPERTIES =
         "candlepin.importer.fail_on_unknown";
     public static final String CA_CERT_UPSTREAM = "candlepin.upstream_ca_cert";
@@ -165,6 +167,8 @@ public class ConfigProperties {
                 this.put(CA_ALIAS, "tomcat");
                 this.put(CA_TOKEN_PREFIX, "NSS system database:");
                 this.put(CA_KEY_PASSWORD, "password");
+                this.put(CA_KEYSTORE_PASSWORD_FILE, "/etc/candlepin/certs/candlepin-keystore-password.txt");
+                this.put(CA_KEYSTORE_NICKNAME, "candlepin-ca");
                 this.put(CA_CERT, "/etc/candlepin/certs/candlepin-ca.crt");
                 this.put(CA_CERT_UPSTREAM, "/etc/candlepin/certs/upstream");
 

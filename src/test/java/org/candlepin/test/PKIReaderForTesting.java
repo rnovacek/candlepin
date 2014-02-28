@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Set;
 
@@ -26,7 +27,7 @@ import org.candlepin.pki.PKIReader;
 /**
  * PKIReaderForTesting
  */
-public class PKIReaderForTesting implements PKIReader {
+public class PKIReaderForTesting extends PKIReader {
 
     @Override
     public X509Certificate getCACert() throws IOException, CertificateException {
@@ -41,6 +42,11 @@ public class PKIReaderForTesting implements PKIReader {
     @Override
     public Set<X509Certificate> getUpstreamCACerts() throws IOException,
         CertificateException {
+        return null;
+    }
+
+    @Override
+    protected CertificateFactory getCertFactory() {
         return null;
     }
 
