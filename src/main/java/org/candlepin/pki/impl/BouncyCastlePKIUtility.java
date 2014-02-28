@@ -166,7 +166,7 @@ public class BouncyCastlePKIUtility extends PKIUtility {
         }
 
         // Generate the certificate
-        return certGen.generate(reader.getCaKey());
+        return certGen.generate(reader.getCAKey());
     }
 
     @Override
@@ -189,7 +189,7 @@ public class BouncyCastlePKIUtility extends PKIUtility {
                 false, new AuthorityKeyIdentifierStructure(caCert));
             generator.addExtension(X509Extensions.CRLNumber, false,
                 new CRLNumber(crlNumber));
-            return generator.generate(reader.getCaKey());
+            return generator.generate(reader.getCAKey());
         }
         catch (Exception e) {
             throw new RuntimeException(e);

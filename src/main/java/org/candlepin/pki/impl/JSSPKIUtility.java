@@ -227,7 +227,7 @@ public class JSSPKIUtility extends PKIUtility {
 
             // Generate the certificate
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            Certificate cert = new Certificate(cInfo, reader.getCaKey(), sigAlg);
+            Certificate cert = new Certificate(cInfo, reader.getCAKey(), sigAlg);
             ByteArrayInputStream bis = new ByteArrayInputStream(ASN1Util.encode(cert));
             return (X509Certificate) certFactory.generateCertificate(bis);
         }

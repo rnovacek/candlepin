@@ -106,7 +106,7 @@ public class JSSPKIReaderTest {
 
         Config config = new Config(props);
         JSSPKIReader reader = new JSSPKIReader(config, CryptoManager.getInstance());
-        PrivateKey key = reader.getCaKey();
+        PrivateKey key = reader.getCAKey();
         assertEquals("RSA", key.getAlgorithm());
         RSAPrivateCrtKey rsaKey = (RSAPrivateCrtKey) key;
         assertEquals(expectedModulus, rsaKey.getModulus());

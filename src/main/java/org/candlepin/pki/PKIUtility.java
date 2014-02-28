@@ -121,7 +121,7 @@ public abstract class PKIUtility {
     public byte[] getSHA256WithRSAHash(InputStream input) {
         try {
             Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initSign(reader.getCaKey());
+            signature.initSign(reader.getCAKey());
 
             updateSignature(input, signature);
             return signature.sign();

@@ -161,7 +161,7 @@ public class BouncyCastlePKIReader extends PKIReader implements PasswordFinder {
      * @return private key for the CA cert
      */
     @Override
-    public PrivateKey getCaKey() throws IOException, GeneralSecurityException {
+    public PrivateKey getCAKey() throws IOException, GeneralSecurityException {
         return this.privateKey;
     }
 

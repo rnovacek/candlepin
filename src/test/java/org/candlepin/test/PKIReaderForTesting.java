@@ -35,7 +35,7 @@ public class PKIReaderForTesting extends PKIReader {
     }
 
     @Override
-    public PrivateKey getCaKey() throws IOException, GeneralSecurityException {
+    public PrivateKey getCAKey() throws IOException, GeneralSecurityException {
         return null;
     }
 

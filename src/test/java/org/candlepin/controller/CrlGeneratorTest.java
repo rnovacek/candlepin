@@ -75,7 +75,7 @@ public class CrlGeneratorTest {
             new DefaultSubjectKeyIdentifierWriter());
         this.generator = new CrlGenerator(curator, pkiUtility);
 
-        when(pkiReader.getCaKey()).thenReturn(KP.getPrivate());
+        when(pkiReader.getCAKey()).thenReturn(KP.getPrivate());
         when(pkiReader.getCACert()).thenReturn(CERT);
     }
 

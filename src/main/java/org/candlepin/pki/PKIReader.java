@@ -49,7 +49,7 @@ public abstract class PKIReader {
      * @throws IOException if a file can't be read or is not found
      * @throws GeneralSecurityException if something violated policy
      */
-    public abstract PrivateKey getCaKey() throws IOException, GeneralSecurityException;
+    public abstract PrivateKey getCAKey() throws IOException, GeneralSecurityException;
 
     protected X509Certificate loadCACertificate(String path) {
         InputStream inStream = null;

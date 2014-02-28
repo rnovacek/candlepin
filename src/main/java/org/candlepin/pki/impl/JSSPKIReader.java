@@ -230,7 +230,7 @@ public class JSSPKIReader extends PKIReader {
     }
 
     @Override
-    public PrivateKey getCaKey() {
+    public PrivateKey getCAKey() {
         return keyPair.getPrivate();
     }
 }

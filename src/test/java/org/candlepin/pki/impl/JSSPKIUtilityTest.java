@@ -55,7 +55,7 @@ public class JSSPKIUtilityTest {
     public void before() throws Exception {
         this.config = new ConfigForTesting();
         pkiReader = mock(PKIReader.class);
-        when(pkiReader.getCaKey()).thenReturn(KP.getPrivate());
+        when(pkiReader.getCAKey()).thenReturn(KP.getPrivate());
         when(pkiReader.getCACert()).thenReturn(CERT);
         pkiUtility = new JSSPKIUtility(null, config, new CrlFileUtil(new PEMEncoder()));
     }
