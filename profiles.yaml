@@ -6,6 +6,7 @@ common: &common
   username: "candlepin"
   password: ""
   logdriver_class: "net.rkbloom.logdriver.LogDriver"
+  keystore_nickname: "tomcat"
 
 postgresql: &default
   <<: *common
