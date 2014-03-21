@@ -301,7 +301,7 @@ public class X509V3ExtensionUtil extends X509Util {
             product.getAttributeValue("version") : "";
         toReturn.setVersion(version);
 
-        Branding brand = getBrandedName(ent.getPool(), product.getId());
+        Branding brand = getBranding(ent.getPool(), product.getId());
         toReturn.setBrandType(brand.getType());
         toReturn.setBrandName(brand.getName());
 
@@ -324,7 +324,7 @@ public class X509V3ExtensionUtil extends X509Util {
      * Return a branding object for the given engineering product ID if one exists for
      * the pool in question.
      */
-    private Branding getBrandedName(Pool pool, String productId) {
+    private Branding getBranding(Pool pool, String productId) {
         Branding resultBranding = null;
         for (Branding b : pool.getBranding()) {
             if (b.getProductId().equals(productId)) {
@@ -340,7 +340,8 @@ public class X509V3ExtensionUtil extends X509Util {
             }
         }
         // If none exist, use empty strings
-        return resultBranding != null ? resultBranding : new Branding(productId, "", "");
+        return resultBranding != null ? resultBranding :
+            new Branding(productId, null, null);
     }
 
     /*
