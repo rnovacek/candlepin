@@ -260,6 +260,17 @@
             "gpg_url": "/path/to/awesomeos/gpg/",
             "metadata_expire": 3600,
             "modified_products": ["27060"]
+        },
+        {
+            "name": "Project Atomic OSTree F20",
+            "id": 7800,
+            "label": "project-atomic-f20",
+            "type": "ostree",
+            "vendor": "Red Hat",
+            "content_url": "http://rpm-ostree.cloud.fedoraproject.org/project-atomic/repo/",
+            "gpg_url": "",
+            "metadata_expire": 3600,
+            "modified_products": []
         }
     ],
     "owners": [
@@ -1711,6 +1722,27 @@
             },
             "provided_products": [
                 "900"
+            ]
+        },
+        {
+            "name": "Project Atomic F20 Eng",
+            "id": "950",
+            "version": "1.0",
+            "arch": "x86_64",
+            "attributes": {
+            },
+            "content": [
+                [7800, true]
+            ]
+        },
+        {
+            "name": "Project Atomic F20",
+            "id": "project-atomic-f20",
+            "type": "MKT",
+            "attributes": {
+            },
+            "provided_products": [
+                "950"
             ]
         }
     ]
