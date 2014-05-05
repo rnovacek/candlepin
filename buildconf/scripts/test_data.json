@@ -267,10 +267,7 @@
             "label": "project-atomic-f20",
             "type": "ostree",
             "vendor": "Red Hat",
-            "content_url": "http://rpm-ostree.cloud.fedoraproject.org/project-atomic/repo/",
-            "gpg_url": "",
-            "metadata_expire": 3600,
-            "modified_products": []
+            "content_url": "http://rpm-ostree.cloud.fedoraproject.org/project-atomic/repo/"
         }
     ],
     "owners": [

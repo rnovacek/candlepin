@@ -150,19 +150,24 @@ def create_content(cp, c)
   puts c['name']
 
   params = {}
-  modified_products = c['modified_products'] || []
-  if c.has_key?('metadata_expire')
-    params[:metadata_expire] = c['metadata_expire']
+
+  optional_params = [
+    'modified_products',
+    'metadata_expire',
+    'required_tags',
+    'arches',
+    'gpg_url'
+  ]
+  optional_params.each do |optional|
+    if c.has_key?(optional)
+      params[optional] = c[optional]
+    end
   end
 
-  if c.has_key?('required_tags')
-    params[:required_tags] = c['required_tags']
-  end
+  #modified_products = c['modified_products'] || []
 
   params[:content_url] = c['content_url']
   params[:arches] = c['arches']
-  params[:gpg_url] = c['gpg_url']
-  params[:modified_products] = modified_products
 
   cp.create_content(c['name'], c['id'], c['label'], c['type'],
                     c['vendor'], params)
