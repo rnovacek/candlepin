@@ -26,10 +26,11 @@ function usage
         -u  run unit test suite
         -s  run a bash shell when done
         -c  git reference to checkout
+        -t  rspec filter to run specific tests
 HELP
 }
 
-while getopts ":rusc:" opt; do
+while getopts ":rustc:" opt; do
     case $opt in
         r  ) RSPEC="1" ;;
         u  ) UNITTEST="1";;
@@ -38,7 +39,7 @@ while getopts ":rusc:" opt; do
         c  )
             CHECKOUT="${OPTARG}"
             ;;
-        ?  ) usage; exit;;
+        ?  ) echo "$opt"; echo "$*"; usage; exit;;
     esac
 done
 
