@@ -11,14 +11,14 @@ build_and_push () {
     DIR=$2
     pushd $DIR
     IMAGE_URI="${REGISTRY}/${REGISTRY_USER}/${TAG}"
-    echo docker build -t "${TAG}" .
-    echo docker tag "${TAG}" "${IMAGE_URI}"
-    echo docker push "${IMAGE_URI}"
+    docker build -t "${TAG}" .
+    docker tag "${TAG}" "${IMAGE_URI}"
+    docker push "${IMAGE_URI}"
     popd
 }
 
-build_and_push "candlepin-base" base
-build_and_push "candlepin-postgresql" postgresql
+build_and_push "alikins-candlepin-base" base
+build_and_push "alikins-candlepin-postgresql" postgresql
 #docker build -t candlepin-postgresql .
 #docker tag candlepin-postgresql docker.usersys.redhat.com/dgoodwin/candlepin-postgresql
 #docker push docker.usersys.redhat.com/dgoodwin/candlepin-postgresql
