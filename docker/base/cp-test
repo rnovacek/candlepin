@@ -77,7 +77,7 @@ if [ "$UNITTEST" == "1" ]; then
 fi
 
 if [ "$RSPEC" == "1" ]; then
-    echo "Running rspec tests."
+    echo "Running rspec tests with filter: ${RSPEC_FILTER}"
     bin/deploy -g
 
     if [ ! -z "$RSPEC_FILTER" ]; then
