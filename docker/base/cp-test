@@ -16,6 +16,12 @@ export JAVA_HOME=/usr/lib/jvm/java-1.7.0/
 export SUPERVISOR=1
 export AUTOCONF=1
 
+launchshell () {
+  if [ -n "$LAUNCHSHELL" ]; then
+      /bin/bash
+  fi
+}
+
 function usage
 {
     cat <<HELP
@@ -30,7 +36,7 @@ function usage
 HELP
 }
 
-while getopts ":rustc:" opt; do
+while getopts ":srutc:" opt; do
     case $opt in
         r  ) RSPEC="1" ;;
         u  ) UNITTEST="1";;
@@ -39,12 +45,20 @@ while getopts ":rustc:" opt; do
         c  )
             CHECKOUT="${OPTARG}"
             ;;
-        ?  ) echo "$opt"; echo "$*"; usage; exit;;
+        ?  ) FAIL="1";;
     esac
 done
 
-shift $(($OPTIND - 1))
+# Show usage and exit on bad cli options, unless
+# one was '-s' (and before the failure), then
+# try to launch a shell to help debugging.
+if [ -n "$FAIL" ] ; then
+    usage
+    launchshell
+    exit
+fi
 
+shift $(($OPTIND - 1))
 
 # WARNING: control+c while this is running will take out supervisor as well.
 /usr/bin/supervisord -c /etc/supervisord.conf &
@@ -86,10 +100,6 @@ if [ "$RSPEC" == "1" ]; then
         buildr rspec
     fi
 
-    ls -la
-    echo "/artifacts"
-    ls -la /artifacts
-
     # If the caller mounted a volume at /artifacts, copy server logs out:
     if [ -d "/artifacts" ]; then
         echo "Copying logs to /artifacts."
@@ -100,7 +110,4 @@ if [ "$RSPEC" == "1" ]; then
     fi
 fi
 
-if [ "$LAUNCHSHELL" == "1" ]; then
-    /bin/bash
-fi
-
+launchshell
