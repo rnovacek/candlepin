@@ -186,6 +186,27 @@ public class ProductResource {
     }
 
     /**
+     * Creates a Product
+     * <p>
+     * Returns either the new created Product or the Product that already existed.
+     *
+     * @param product
+     * @return a Product object
+     * @httpcode 200
+     */
+    @POST
+    @Path("/producttest")
+    @Produces(MediaType.APPLICATION_JSON)
+    public void createProduct(@QueryParam("pid1") String pid1, @QueryParam("pid2") String pid2) {
+        Product product1 = new Product(pid1, pid1);
+        prodAdapter.createProduct(product1);
+        log.debug("Created product: " + product1);
+        Product product2 = new Product(pid2, pid2);
+        prodAdapter.createProduct(product2);
+        log.debug("Created product: " + product2);
+    }
+
+    /**
      * Updates a Product
      *
      * @return a Product object
