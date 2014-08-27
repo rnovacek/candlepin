@@ -14,7 +14,7 @@
  */
 package org.candlepin.guice;
 
-import com.google.inject.persist.Transactional;
+import com.google.inject.Inject;
 
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
@@ -25,10 +25,11 @@ import org.aopalliance.intercept.MethodInvocation;
  */
 public class CandlepinResourceTxnInterceptor implements MethodInterceptor {
 
-    @Override
-    @Transactional
-    public Object invoke(MethodInvocation invocation) throws Throwable {
-        return invocation.proceed();
-    }
+    @Inject
+    private TransactionalInvoker invoker;
 
+    @Override
+    public Object invoke(MethodInvocation invocation) throws Throwable {
+        return invoker.invoke(invocation);
+    }
 }

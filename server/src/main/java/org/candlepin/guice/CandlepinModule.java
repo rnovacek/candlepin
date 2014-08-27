@@ -158,12 +158,7 @@ public class CandlepinModule extends AbstractModule {
         bind(Config.class).asEagerSingleton();
         install(new JpaPersistModule("default").properties(config
             .jpaConfiguration(config)));
-        // Match our transaction interceptor to ALL resource methods.
-        CandlepinResourceTxnInterceptor txni = new CandlepinResourceTxnInterceptor();
-        requestInjection(txni);
-        bindInterceptor(Matchers.inSubpackage("org.candlepin.resource"),
-                Matchers.any(), txni);
-        
+
         bind(JPAInitializer.class).asEagerSingleton();
 
         bind(PKIUtility.class).to(BouncyCastlePKIUtility.class)
@@ -252,6 +247,13 @@ public class CandlepinModule extends AbstractModule {
             .to(ExpiryDateFunction.class).in(Singleton.class);
 
         this.configureAmqp();
+
+        // Match our transaction interceptor to ALL resource methods.
+        bind(TransactionalInvoker.class);
+        CandlepinResourceTxnInterceptor txni = new CandlepinResourceTxnInterceptor();
+        requestInjection(txni);
+        bindInterceptor(Matchers.inSubpackage("org.candlepin.resource"),
+                Matchers.any(), txni);
     }
 
     @Provides @Named("ValidationProperties")
