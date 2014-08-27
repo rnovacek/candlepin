@@ -120,6 +120,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provider;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import com.google.inject.matcher.Matchers;
 import com.google.inject.name.Named;
 import com.google.inject.name.Names;
 import com.google.inject.persist.jpa.JpaPersistModule;
@@ -157,6 +158,12 @@ public class CandlepinModule extends AbstractModule {
         bind(Config.class).asEagerSingleton();
         install(new JpaPersistModule("default").properties(config
             .jpaConfiguration(config)));
+        // Match our transaction interceptor to ALL resource methods.
+        CandlepinResourceTxnInterceptor txni = new CandlepinResourceTxnInterceptor();
+        requestInjection(txni);
+        bindInterceptor(Matchers.inSubpackage("org.candlepin.resource"),
+                Matchers.any(), txni);
+        
         bind(JPAInitializer.class).asEagerSingleton();
 
         bind(PKIUtility.class).to(BouncyCastlePKIUtility.class)
