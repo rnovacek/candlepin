@@ -14,8 +14,10 @@
  */
 package org.candlepin.servlet.filter;
 
-import com.google.inject.Provider;
+import org.candlepin.common.jackson.DynamicFilterData;
+import org.jboss.resteasy.spi.ResteasyProviderFactory;
 
+import com.google.inject.Provider;
 import org.candlepin.audit.EventSink;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
@@ -56,10 +58,12 @@ public class EventFilter implements Filter {
     public void doFilter(ServletRequest request, ServletResponse response,
         FilterChain chain) throws IOException, ServletException {
 
+        EventSink sink =  eventSinkProvider.get();
+        ResteasyProviderFactory.pushContext(EventSink.class, sink);
         chain.doFilter(request, response);
 
         // Won't trigger if an exception is thrown:
-        eventSinkProvider.get().sendEvents();
+        sink.sendEvents();
     }
 
     @Override

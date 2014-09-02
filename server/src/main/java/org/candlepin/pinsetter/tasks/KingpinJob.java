@@ -16,8 +16,9 @@ package org.candlepin.pinsetter.tasks;
 
 import static org.quartz.impl.matchers.NameMatcher.*;
 
-import org.candlepin.audit.EventSink;
+import org.jboss.resteasy.spi.ResteasyProviderFactory;
 
+import org.candlepin.audit.EventSink;
 import org.candlepin.config.Config;
 import org.candlepin.config.ConfigProperties;
 import org.candlepin.model.JobCurator;
@@ -64,6 +65,9 @@ public abstract class KingpinJob implements Job {
         catch (NullPointerException npe) {
             //this can occur in testing
         }
+
+        EventSink sink =  eventSink;
+        ResteasyProviderFactory.pushContext(EventSink.class, sink);
 
         /*
          * Execute our 'real' job inside a custom unit of work scope, instead

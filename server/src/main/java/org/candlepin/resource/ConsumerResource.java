@@ -497,7 +497,8 @@ public class ConsumerResource {
             IdentityCertificate idCert = generateIdCert(consumer, false);
             consumer.setIdCert(idCert);
 
-            sink.get().emitConsumerCreated(consumer);
+            EventSink mysink = ResteasyProviderFactory.getContextData(EventSink.class);
+            mysink.emitConsumerCreated(consumer);
 
             handleActivationKeys(consumer, keys);
 

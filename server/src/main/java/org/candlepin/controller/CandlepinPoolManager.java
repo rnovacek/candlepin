@@ -14,6 +14,8 @@
  */
 package org.candlepin.controller;
 
+import org.jboss.resteasy.spi.ResteasyProviderFactory;
+
 import org.candlepin.audit.Event;
 import org.candlepin.audit.Event.Target;
 import org.candlepin.audit.Event.Type;
@@ -58,13 +60,10 @@ import org.candlepin.service.SubscriptionServiceAdapter;
 import org.candlepin.util.CertificateSizeException;
 import org.candlepin.util.Util;
 import org.candlepin.version.CertVersionConflictException;
-
 import com.google.inject.Inject;
 import com.google.inject.persist.Transactional;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -411,7 +410,7 @@ public class CandlepinPoolManager implements PoolManager {
             log.debug("   new pool: " + p);
         }
         if (created != null) {
-            sink.emitPoolCreated(created);
+            ResteasyProviderFactory.getContextData(EventSink.class).emitPoolCreated(created);
         }
 
         return created;
