@@ -14,6 +14,20 @@
  */
 package org.candlepin.controller;
 
+import com.google.inject.Inject;
+import com.google.inject.Provider;
+import com.google.inject.persist.Transactional;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.candlepin.audit.Event;
 import org.candlepin.audit.Event.Target;
 import org.candlepin.audit.Event.Type;
@@ -58,24 +72,8 @@ import org.candlepin.service.SubscriptionServiceAdapter;
 import org.candlepin.util.CertificateSizeException;
 import org.candlepin.util.Util;
 import org.candlepin.version.CertVersionConflictException;
-
-import com.google.inject.Inject;
-import com.google.inject.persist.Transactional;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * PoolManager
@@ -86,7 +84,7 @@ public class CandlepinPoolManager implements PoolManager {
     private static Logger log = LoggerFactory.getLogger(CandlepinPoolManager.class);
 
     private SubscriptionServiceAdapter subAdapter;
-    private EventSink sink;
+    private Provider<EventSink> sinkProvider;
     private EventFactory eventFactory;
     private Config config;
     private Enforcer enforcer;
@@ -111,7 +109,7 @@ public class CandlepinPoolManager implements PoolManager {
     public CandlepinPoolManager(PoolCurator poolCurator,
         SubscriptionServiceAdapter subAdapter,
         ProductCache productCache,
-        EntitlementCertServiceAdapter entCertAdapter, EventSink sink,
+        EntitlementCertServiceAdapter entCertAdapter, Provider<EventSink> sink,
         EventFactory eventFactory, Config config, Enforcer enforcer,
         PoolRules poolRules, EntitlementCurator curator1, ConsumerCurator consumerCurator,
         EntitlementCertificateCurator ecC, ComplianceRules complianceRules,
@@ -119,7 +117,7 @@ public class CandlepinPoolManager implements PoolManager {
 
         this.poolCurator = poolCurator;
         this.subAdapter = subAdapter;
-        this.sink = sink;
+        this.sinkProvider = sink;
         this.eventFactory = eventFactory;
         this.config = config;
         this.entitlementCurator = curator1;
@@ -351,7 +349,7 @@ public class CandlepinPoolManager implements PoolManager {
             Event event = poolEvents.get(existingPool.getId())
                     .setNewEntity(existingPool)
                     .buildEvent();
-            sink.queueEvent(event);
+            sinkProvider.get().queueEvent(event);
         }
 
         return entitlementsToRegen;
@@ -411,7 +409,7 @@ public class CandlepinPoolManager implements PoolManager {
             log.debug("   new pool: " + p);
         }
         if (created != null) {
-            sink.emitPoolCreated(created);
+            sinkProvider.get().emitPoolCreated(created);
         }
 
         return created;
@@ -994,7 +992,7 @@ public class CandlepinPoolManager implements PoolManager {
             }
 
             // send entitlement changed event.
-            this.sink.queueEvent(this.eventFactory.entitlementChanged(e));
+            this.sinkProvider.get().queueEvent(this.eventFactory.entitlementChanged(e));
             if (log.isDebugEnabled()) {
                 log.debug("Generated entitlementCertificate: #" + generated.getId());
             }
@@ -1113,7 +1111,7 @@ public class CandlepinPoolManager implements PoolManager {
             complianceRules.getStatus(consumer);
         }
 
-        sink.queueEvent(event);
+        sinkProvider.get().queueEvent(event);
     }
 
     @Override
@@ -1162,7 +1160,7 @@ public class CandlepinPoolManager implements PoolManager {
         }
 
         poolCurator.delete(pool);
-        sink.queueEvent(event);
+        sinkProvider.get().queueEvent(event);
     }
 
     /**

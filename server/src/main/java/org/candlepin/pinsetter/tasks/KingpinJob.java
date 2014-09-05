@@ -14,8 +14,14 @@
  */
 package org.candlepin.pinsetter.tasks;
 
-import static org.quartz.impl.matchers.NameMatcher.*;
+import static org.quartz.impl.matchers.NameMatcher.jobNameEquals;
 
+import com.google.inject.Inject;
+import com.google.inject.Provider;
+import com.google.inject.persist.UnitOfWork;
+import javax.inject.Named;
+import javax.persistence.EntityExistsException;
+import javax.persistence.PersistenceException;
 import org.candlepin.audit.EventSink;
 import org.candlepin.config.Config;
 import org.candlepin.config.ConfigProperties;
@@ -23,10 +29,6 @@ import org.candlepin.guice.SimpleScope;
 import org.candlepin.model.JobCurator;
 import org.candlepin.pinsetter.core.PinsetterJobListener;
 import org.candlepin.pinsetter.core.model.JobStatus;
-
-import com.google.inject.Inject;
-import com.google.inject.persist.UnitOfWork;
-
 import org.quartz.Job;
 import org.quartz.JobDetail;
 import org.quartz.JobExecutionContext;
@@ -37,10 +39,6 @@ import org.quartz.Trigger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-
-import javax.inject.Named;
-import javax.persistence.EntityExistsException;
-import javax.persistence.PersistenceException;
 
 /**
  * KingpinJob replaces TransactionalPinsetterJob, which encapsulated
@@ -53,7 +51,7 @@ public abstract class KingpinJob implements Job {
     private static Logger log = LoggerFactory.getLogger(KingpinJob.class);
     @Inject protected UnitOfWork unitOfWork;
     @Inject protected Config config;
-    @Inject private EventSink eventSink;
+    @Inject private Provider<EventSink> eventSinkProvider;
 
     @Inject @Named("PinsetterJobScope") private SimpleScope pinsetterJobScope;
     protected static String prefix = "job";
@@ -66,16 +64,17 @@ public abstract class KingpinJob implements Job {
         try {
             MDC.put("requestType", "job");
             MDC.put("requestUuid", context.getJobDetail().getKey().getName());
+
+            /*
+             * Execute our 'real' job inside a custom unit of work scope, instead
+             * of the guice provided one, which is HTTP request scoped.
+             */
+            pinsetterJobScope.enter();
         }
         catch (NullPointerException npe) {
             //this can occur in testing
         }
 
-        /*
-         * Execute our 'real' job inside a custom unit of work scope, instead
-         * of the guice provided one, which is HTTP request scoped.
-         */
-        pinsetterJobScope.enter();
         boolean startedUow = startUnitOfWork();
         try {
             // It might be nice at some point to auto-insert the job context into
@@ -83,7 +82,9 @@ public abstract class KingpinJob implements Job {
             // pinsetterJobScope.seed(Key.get(JobExecutionContext.class), context);
             toExecute(context);
 
-            eventSink.sendEvents();
+            if (eventSinkProvider != null) {
+                eventSinkProvider.get().sendEvents();
+            }
         }
         catch (PersistenceException e) {
             // Multiple refreshpools running at once can cause the following:
@@ -115,7 +116,9 @@ public abstract class KingpinJob implements Job {
             if (startedUow) {
                 endUnitOfWork();
             }
-            pinsetterJobScope.exit();
+            if (pinsetterJobScope != null) {
+                pinsetterJobScope.exit();
+            }
         }
     }
 

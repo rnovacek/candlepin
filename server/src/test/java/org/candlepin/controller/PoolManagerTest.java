@@ -14,10 +14,35 @@
  */
 package org.candlepin.controller;
 
-import static org.junit.Assert.*;
-import static org.mockito.Matchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
+import com.google.inject.Provider;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import org.candlepin.audit.Event;
 import org.candlepin.audit.Event.Target;
 import org.candlepin.audit.Event.Type;
@@ -62,7 +87,6 @@ import org.candlepin.service.ProductServiceAdapter;
 import org.candlepin.service.SubscriptionServiceAdapter;
 import org.candlepin.test.TestUtil;
 import org.candlepin.util.Util;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -71,17 +95,6 @@ import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 
 /**
  * PoolManagerTest
@@ -97,6 +110,8 @@ public class PoolManagerTest {
     private ProductServiceAdapter mockProductAdapter;
     @Mock
     private EventSink mockEventSink;
+    @Mock
+    private Provider<EventSink> mockEventSinkProvider;
     @Mock
     private Config mockConfig;
     @Mock
@@ -149,11 +164,12 @@ public class PoolManagerTest {
         when(eventFactory.getEventBuilder(any(Target.class), any(Type.class))).thenReturn(eventBuilder);
         when(eventBuilder.setNewEntity(any(AbstractHibernateObject.class))).thenReturn(eventBuilder);
         when(eventBuilder.setOldEntity(any(AbstractHibernateObject.class))).thenReturn(eventBuilder);
+        when(mockEventSinkProvider.get()).thenReturn(mockEventSink);
         this.productCache = new ProductCache(mockConfig, mockProductAdapter);
 
         this.principal = TestUtil.createOwnerPrincipal();
         this.manager = spy(new CandlepinPoolManager(mockPoolCurator, mockSubAdapter,
-            productCache, entCertAdapterMock, mockEventSink, eventFactory,
+            productCache, entCertAdapterMock, mockEventSinkProvider, eventFactory,
             mockConfig, enforcerMock, poolRulesMock, entitlementCurator,
             consumerCuratorMock, certCuratorMock, complianceRules, autobindRules,
             activationKeyRules));

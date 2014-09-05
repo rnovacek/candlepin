@@ -14,8 +14,23 @@
  */
 package org.candlepin.guice;
 
-import com.google.inject.servlet.RequestScoped;
-
+import com.google.common.base.Function;
+import com.google.inject.AbstractModule;
+import com.google.inject.Injector;
+import com.google.inject.Provider;
+import com.google.inject.Provides;
+import com.google.inject.Singleton;
+import com.google.inject.matcher.Matcher;
+import com.google.inject.matcher.Matchers;
+import com.google.inject.name.Named;
+import com.google.inject.name.Names;
+import com.google.inject.persist.Transactional;
+import com.google.inject.persist.jpa.JpaPersistModule;
+import java.lang.reflect.AnnotatedElement;
+import java.util.Properties;
+import javax.validation.MessageInterpolator;
+import javax.validation.Validation;
+import javax.validation.ValidatorFactory;
 import org.candlepin.audit.AMQPBusPublisher;
 import org.candlepin.audit.EventSink;
 import org.candlepin.audit.EventSinkImpl;
@@ -116,28 +131,12 @@ import org.candlepin.util.DateSource;
 import org.candlepin.util.DateSourceImpl;
 import org.candlepin.util.ExpiryDateFunction;
 import org.candlepin.util.X509ExtensionUtil;
-import com.google.common.base.Function;
-import com.google.inject.AbstractModule;
-import com.google.inject.Provider;
-import com.google.inject.Provides;
-import com.google.inject.Singleton;
-import com.google.inject.matcher.Matcher;
-import com.google.inject.matcher.Matchers;
-import com.google.inject.name.Named;
-import com.google.inject.name.Names;
-import com.google.inject.persist.Transactional;
-import com.google.inject.persist.jpa.JpaPersistModule;
 import org.hibernate.cfg.beanvalidation.BeanValidationEventListener;
 import org.hibernate.validator.HibernateValidator;
 import org.hibernate.validator.HibernateValidatorConfiguration;
 import org.quartz.JobListener;
 import org.quartz.spi.JobFactory;
 import org.xnap.commons.i18n.I18n;
-import java.lang.reflect.AnnotatedElement;
-import java.util.Properties;
-import javax.validation.MessageInterpolator;
-import javax.validation.Validation;
-import javax.validation.ValidatorFactory;
 
 /**
  * CandlepinModule
@@ -235,7 +234,7 @@ public class CandlepinModule extends AbstractModule {
 
         // Bind event sink in request scope, it will hold onto events which we will
         // only dispatch if the request is successful.
-        bind(EventSink.class).to(EventSinkImpl.class).in(RequestScoped.class);
+//        bind(EventSink.class).to(EventSinkImpl.class).in(RequestScoped.class);
 
         this.configurePinsetter();
 
@@ -256,6 +255,7 @@ public class CandlepinModule extends AbstractModule {
 
         configureMethodInterceptors();
 
+        this.configurePinsetter();
     }
 
     private void configureMethodInterceptors() {
@@ -275,6 +275,12 @@ public class CandlepinModule extends AbstractModule {
                 and(Matchers.not(Matchers.annotatedWith(NonTransactional.class)));
         bindInterceptor(Matchers.inSubpackage("org.candlepin.resource").and(notMarked),
                 notMarked, txni);
+    }
+
+    @Provides
+    @PinsetterJobScoped
+    protected EventSink getScopedEventSink(Injector injector) {
+        return injector.getInstance(EventSinkImpl.class);
     }
 
     @Provides @Named("ValidationProperties")
@@ -302,6 +308,12 @@ public class CandlepinModule extends AbstractModule {
     }
 
     private void configurePinsetter() {
+
+        SimpleScope pinsetterJobScope = new SimpleScope();
+        bindScope(PinsetterJobScoped.class, pinsetterJobScope);
+        bind(SimpleScope.class).annotatedWith(Names.named("PinsetterJobScope")).toInstance(
+                pinsetterJobScope);
+
         bind(JobFactory.class).to(GuiceJobFactory.class);
         bind(JobListener.class).to(PinsetterJobListener.class);
         bind(PinsetterKernel.class);

@@ -14,6 +14,12 @@
  */
 package org.candlepin.controller;
 
+import com.google.inject.Inject;
+import com.google.inject.Provider;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 import org.candlepin.audit.Event;
 import org.candlepin.audit.EventFactory;
 import org.candlepin.audit.EventSink;
@@ -27,17 +33,9 @@ import org.candlepin.model.Pool;
 import org.candlepin.model.PoolQuantity;
 import org.candlepin.policy.EntitlementRefusedException;
 import org.candlepin.policy.js.entitlement.EntitlementRulesTranslator;
-
-import com.google.inject.Inject;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnap.commons.i18n.I18n;
-
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
 
 /**
  * entitler
@@ -48,13 +46,13 @@ public class Entitler {
     private PoolManager poolManager;
     private I18n i18n;
     private EventFactory evtFactory;
-    private EventSink sink;
+    private Provider<EventSink> sink;
     private ConsumerCurator consumerCurator;
     private EntitlementRulesTranslator messageTranslator;
 
     @Inject
     public Entitler(PoolManager pm, ConsumerCurator cc, I18n i18n,
-        EventFactory evtFactory, EventSink sink,
+        EventFactory evtFactory, Provider<EventSink> sink,
         EntitlementRulesTranslator messageTranslator) {
 
         this.poolManager = pm;
@@ -225,7 +223,7 @@ public class Entitler {
         if (entitlements != null) {
             for (Entitlement e : entitlements) {
                 Event event = evtFactory.entitlementCreated(e);
-                sink.queueEvent(event);
+                sink.get().queueEvent(event);
             }
         }
     }
