@@ -31,6 +31,7 @@ import org.quartz.JobExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -59,7 +60,7 @@ public class EntitleByProductsJob extends KingpinJob {
             Date entitleDate = (Date) map.get("entitle_date");
             String[] prodIds = (String[]) map.get("product_ids");
             HashSet<String> fromPools = (HashSet<String>) map.get("from_pools");
-            
+
             List<Entitlement> ents = entitler.bindByProducts(prodIds, uuid, entitleDate, fromPools);
             entitler.sendEvents(ents);
             ctx.setResult("Entitlements created for owner");
@@ -74,7 +75,7 @@ public class EntitleByProductsJob extends KingpinJob {
     }
 
     public static JobDetail bindByProducts(String[] prodIds, String uuid,
-        Date entitleDate, HashSet<String> fromPools) {
+        Date entitleDate, Collection<String> fromPools) {
         JobDataMap map = new JobDataMap();
         map.put("product_ids", prodIds);
         map.put(JobStatus.TARGET_TYPE, JobStatus.TargetType.CONSUMER);
