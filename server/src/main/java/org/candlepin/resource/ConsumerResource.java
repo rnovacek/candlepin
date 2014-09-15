@@ -948,6 +948,12 @@ public class ConsumerResource {
             changesMade = true;
         }
 
+        String annotation = updated.getAnnotation();
+        if (annotation != null && !toUpdate.getAnnotation().equals(annotation)) {
+            toUpdate.setAnnotation(annotation);
+            changesMade = true;
+        }
+
         if (changesMade) {
             log.debug("Consumer " + toUpdate.getUuid() + " updated.");
 

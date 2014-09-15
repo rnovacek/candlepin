@@ -111,6 +111,10 @@ public class Consumer extends AbstractHibernateObject implements Linkable, Owned
     @Size(max = 255)
     private String releaseVer;
 
+    // for describing the system
+    @Column(length = 255, nullable = true)
+    private String annotation;
+
     /*
      * Because this object is used both as a Hibernate object, as well as a DTO to be
      * serialized and sent to callers, we do some magic with these two cert related
@@ -311,6 +315,14 @@ public class Consumer extends AbstractHibernateObject implements Linkable, Owned
      */
     public void setOwner(Owner owner) {
         this.owner = owner;
+    }
+
+    public void setAnnotation(String annotation) {
+        this.annotation = annotation;
+    }
+
+    public String getAnnotation() {
+        return this.annotation;
     }
 
     @Override
