@@ -10,10 +10,9 @@ gem 'parallel_tests'
 gem 'buildr-findBugs'
 gem 'pmd'
 gem 'stringex'
+gem 'httpclient'
 
 group :development do
-  gem 'httpclient'
-  gem 'minitest'
-  gem 'shoulda-context'
   gem 'webrick'
+  gem 'pry'
 end
