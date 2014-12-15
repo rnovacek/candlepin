@@ -434,7 +434,7 @@ class Candlepin
     return status if immediate
     # otherwise poll the server to make this call synchronous
     while status['state'].downcase != 'finished'
-      sleep 1
+      sleep 10
       # POSTing here will delete the job once it has finished
       status = post(status['statusPath'])
     end

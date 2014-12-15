@@ -12,7 +12,7 @@ require "../client/ruby/candlepin_api"
 require 'pp'
 require 'optparse'
 
-CP_SERVER = "localhost"
+CP_SERVER = "grimlock.usersys.redhat.com"
 CP_PORT = 8443
 CP_ADMIN_USER = "admin"
 CP_ADMIN_PASS = "admin"
@@ -33,32 +33,65 @@ def an_ent()
     return "\033[32m.\033[0m"
 end
 
-def consume(consumer_cp, pool_id)
+def consume(consumer, pool_id)
+  debug "consume"
+  debug consumer['id']
+  debug pool_id
+  consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
+                     consumer['idCert']['key'], server, port)
+    
   ent = consumer_cp.consume_pool(pool_id)[0]
   pool = consumer_cp.get_pool(ent['pool']['id'])
   debug "Got entitlement #{ent['id']} from pool #{ent['pool']['id']} (#{pool['consumed']} of #{pool['quantity']})"
   return ent, pool
 end
 
+
+def register(server, port, user, pass, owner_key)
+  cp = Candlepin.new(username=user, password=pass,
+    cert=nil, key=nil,
+    host=server, port=port)
+  consumer = cp.register("test" << rand(10000).to_s, :candlepin, nil, {}, nil, owner_key)
+
+  debug consumer['id']
+  return consumer
+end
+
+#  cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
+#                     consumer['idCert']['key'], server, port)
+#  ent = cp.consume_pool(pool_id)[0]
+#  pool = cp.get_pool(ent['pool']['id'])
+
+#  # Now unbind it:
+#  cp.unbind_entitlement(ent['id'], {:uuid => consumer['uuid']})
+#  debug "Got and returned entitlement: #{ent['id']}"
+#  return ent
+#end
+
+debug 'creating product'
 # Create a product and pool to consume:
 product_id = "concurproduct-#{rand(100000)}"
 cp = Candlepin.new(username=CP_ADMIN_USER, password=CP_ADMIN_PASS,
   cert=nil, key=nil,
   host=CP_SERVER, port=CP_PORT)
 test_owner = cp.create_owner("testowner-#{rand(100000)}")
+puts "create owner"
 attributes = {'multi-entitlement' => "yes"}
 cp.create_product(product_id, product_id, {:attributes => attributes})
+puts "create_product"
 cp.create_subscription(test_owner['key'], product_id, 10)
+puts "start refresh pools"
 cp.refresh_pools(test_owner['key'])
 pools = cp.list_pools(:owner => test_owner['id'])
 pool = pools[0]
 
+debug 'sdfsdf'
 # Create a consumer to bind entitlements to. We'll just use one combined
 # with a pool that supports multi-entitlement:
-consumer = cp.register("test" << rand(10000).to_s, :candlepin,
-  nil, {}, nil, test_owner['key'])
-consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
-  consumer['idCert']['key'], CP_SERVER, CP_PORT)
+#consumer = cp.register("test" << rand(10000).to_s, :candlepin,
+#  nil, {}, nil, test_owner['key'])
+#consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
+#  consumer['idCert']['key'], CP_SERVER, CP_PORT)
 
 # Launch threads to try to bind at same time:
 num_threads = ARGV[0].to_i
@@ -69,19 +102,58 @@ end
 queue = Queue.new
 
 threads = []
+consumers = []
 for i in 0..num_threads - 1
   threads[i] = Thread.new do
     Thread.current[:name] = "Thread"
     begin
-      ent = consume(consumer_cp, pool['id'])
-      queue << (ent.nil? ? no_ent : an_ent)
+      consumer_register = register(CP_SERVER, CP_PORT, CP_ADMIN_USER, CP_ADMIN_PASS,
+                          test_owner['key'])
+      queue << consumer_register
     rescue
       debug "Exception caught / no entitlement"
+#      queue << no_ent
+    end
+  end
+end
+
+collector = Thread.new do
+  for i in 0..num_threads - 1
+    consumers << queue.pop
+    STDOUT.print "."
+    STDOUT.flush
+  end
+  STDOUT.print "\n"
+end
+
+debug "collector1"
+collector.join
+threads.each { |thread| thread.join }
+
+debug "joined"
+#puts consumers
+
+
+queue = Queue.new
+
+debug 'foo'
+threads = []
+for i in 0..num_threads - 1
+  threads[i] = Thread.new do
+    Thread.current[:name] = "Thread"
+    begin
+      ent = consume(consumers[i], pool['id'])
+      debug "post consume"
+      queue << (ent.nil? ? no_ent : an_ent)
+    rescue
+      debug consumers[i]['uuid']
+      debug "Exception caught, something in consume"
       queue << no_ent
     end
   end
 end
 
+debug "collector2"
 collector = Thread.new do
   res_string = ""
   for i in 0..num_threads - 1
@@ -92,5 +164,6 @@ collector = Thread.new do
   STDOUT.print "\n"
 end
 
+debug "join2"
 collector.join
 threads.each { |thread| thread.join }
