@@ -24,6 +24,7 @@ class Candlepin
                  trusted_user=false, context='candlepin',
                  use_ssl = true)
 
+    #puts "#{username} #{cert} #{host} #{port} #{lang} #{uuid} #{use_ssl}"
     if not username.nil? and not cert.nil?
       raise "Cannot connect with both username and identity cert"
     end
