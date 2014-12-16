@@ -35,12 +35,12 @@ def an_ent()
 end
 
 
-def consume(server, port, consumer, pool_id)
+def consume(consumer_cp, pool_id)
   #debug "consume"
   #debug consumer['id']
-  debug consumer['uuid']
-  consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
-                             consumer['idCert']['key'], server, port)
+  debug consumer_cp
+#  consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
+#                             consumer['idCert']['key'], server, port)
 #  consumer_cp = Candlepin.new(nil, nil, nil, nil, server, port,
 #                             uuid=consumer['uuid'], use_ssl=false)
   #debug consumer_cp
@@ -51,11 +51,13 @@ def consume(server, port, consumer, pool_id)
   return ent, pool
 end
 
-def serials(server, port, consumer)
-  consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
-                             consumer['idCert']['key'], server, port)
+def serials(consumer_cp)
+  #consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
+  #                           consumer['idCert']['key'], server, port)
    
-  consumer_cp.list_certificate_serials()
+  ret = consumer_cp.list_certificate_serials()
+  debug ret
+  return "sdfsd"
 end
 
 def register(server, port, user, pass, owner_key)
@@ -64,8 +66,10 @@ def register(server, port, user, pass, owner_key)
     host=server, port=port)
   consumer = cp.register("test" << rand(10000).to_s, :candlepin, nil, {}, nil, owner_key)
 
+  consumer_cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
+                             consumer['idCert']['key'], server, port)
   #debug consumer['id']
-  return consumer
+  return consumer_cp
 end
 
 #  cp = Candlepin.new(nil, nil, consumer['idCert']['cert'],
@@ -121,9 +125,9 @@ for i in 0..num_threads - 1
   threads[i] = Thread.new do
     Thread.current[:name] = "Thread"
     begin
-      consumer_register = register(CP_SERVER, CP_PORT, CP_ADMIN_USER, CP_ADMIN_PASS,
+      consumer_cp = register(CP_SERVER, CP_PORT, CP_ADMIN_USER, CP_ADMIN_PASS,
                           test_owner['key'])
-      queue << consumer_register
+      queue << consumer_cp
     rescue
       debug "Exception caught / no entitlement"
       raise
@@ -132,14 +136,34 @@ for i in 0..num_threads - 1
   end
 end
 
+
 collector = Thread.new do
   for i in 0..num_threads - 1
-    consumers << queue.pop
+    consumer_cp << queue.pop
     STDOUT.print "."
     STDOUT.flush
-  end
-  STDOUT.print "\n"
+    Thread.new do
+        begin
+            consumed = consumer(consumer_cp, pool['id'])
+            queue << consumed
+        rescue
+            debug "wtf"
+            queue << "consume failed"
+        end
+    end
 end
+   # Thread.new do
+   # begin
+    #    serial = serials(consumer_cp)
+    #    queue << serial;
+    #rescue
+    #    debug "wtf"
+  #      queue << "serial failed"
+ #   end
+#
+#    end
+#  STDOUT.print "\n"
+#end
 
 debug "collector1"
 collector.join
@@ -155,6 +179,7 @@ queue = Queue.new
 
 #ent = consume(CP_SERVER, CP_PORT, consumers[0], pool['id'])
 #debug ent
+
 
 
 debug 'foo'
@@ -174,7 +199,8 @@ for i in 0..num_threads - 1
       queue << no_ent
     end
     begin
-       serials = serials(CP_SERVER< CP_PORT, consumers[i])
+       debug "fooffff"
+       serials = serials(CP_SERVER, CP_PORT, consumers[i])
        queue << serials
     rescue
        debug "bar"
@@ -182,10 +208,14 @@ for i in 0..num_threads - 1
   end
 end
 
+
+debug queue.length
 debug "collector2"
 collector = Thread.new do
   res_string = ""
   for i in 0..num_threads - 1
+    STDOUT.print "#{i}"
+    STDOUT.flush
     res_string << queue.pop
     STDOUT.print "\r" + res_string
     STDOUT.flush
