@@ -34,6 +34,50 @@ def an_ent()
     return "\033[32m.\033[0m"
 end
 
+# borrowed from import_products
+# from http://burgestrand.se/articles/quick-and-simple-ruby-thread-pool.html
+class ThreadPool
+  def initialize(size)
+    @size = size
+    @jobs = Queue.new
+    @results = {}
+    @pool = Array.new(@size) do |i|
+      Thread.new do
+        Thread.current[:id] = i
+        catch(:exit) do
+          loop do
+            job, args = @jobs.pop
+            #job.call(*args)
+            res = job.call(*args)
+            #@results[job] = res
+          end
+        end
+      end
+    end
+  end
+
+  def schedule(*args, &block)
+    @jobs << [block, args]
+  end
+
+  def shutdown
+    @size.times do
+      schedule { throw :exit }
+    end
+
+    @pool.map(&:join)
+  end
+end
+
+
+# consumer_count
+# thread_count
+# create a owner
+# create a product
+# create a sub for that product
+# refresh pools for owner
+# create a queue of consumers_to_create that is consumer_count long
+# create thread_count threads to 
 
 def consume(consumer_cp, pool_id)
   #debug "consume"
@@ -119,6 +163,23 @@ end
 
 queue = Queue.new
 
+consumer_count = 5
+thread_pool = ThreadPool.new(num_threads)
+consumer_list = Array.new(consumer_count)
+registered_consumers = []
+
+consumer_list.each do |consumer|
+    thread_pool.schedule do
+      register(CP_SERVER, CP_PORT, CP_ADMIN_USER, CP_ADMIN_PASS, test_owner['key'])
+    end
+end
+
+registered_consumers = thread_pool.results
+registered_consumer.each do |job,consumer_cp|
+    puts "#{consumer_cp}"
+end
+
+
 threads = []
 consumers = []
 for i in 0..num_threads - 1
@@ -136,21 +197,24 @@ for i in 0..num_threads - 1
   end
 end
 
-
+consumer_cps = []
+debug queue
 collector = Thread.new do
   for i in 0..num_threads - 1
-    consumer_cp << queue.pop
-    STDOUT.print "."
-    STDOUT.flush
-    Thread.new do
-        begin
-            consumed = consumer(consumer_cp, pool['id'])
-            queue << consumed
-        rescue
-            debug "wtf"
-            queue << "consume failed"
-        end
+    begin
+      consumer_cps <<  queue.pop
+      STDOUT.print "."
+      STDOUT.flush
+        #Thread.new do
+        #    begin
+        #        consumed = consumer(consumer_cp, pool['id'])
+        #        queue << consumed
+        #    rescue
+        #        debug "wtf"
+        #        queue << "consume failed"
+        #    end
     end
+  end
 end
    # Thread.new do
    # begin
@@ -165,6 +229,8 @@ end
 #  STDOUT.print "\n"
 #end
 
+debug "consumer_cps"
+debug consumer_cps
 debug "collector1"
 collector.join
 threads.each { |thread| thread.join }
