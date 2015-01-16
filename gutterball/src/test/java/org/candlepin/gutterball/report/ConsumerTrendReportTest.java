@@ -14,7 +14,7 @@
  */
 package org.candlepin.gutterball.report;
 
-import static org.candlepin.gutterball.TestUtils.*;
+import static org.candlepin.gutterball.TestUtils.createComplianceSnapshot;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -22,6 +22,7 @@ import org.candlepin.gutterball.DatabaseTestFixture;
 import org.candlepin.gutterball.guice.I18nProvider;
 import org.candlepin.gutterball.model.ConsumerState;
 import org.candlepin.gutterball.model.snapshot.Compliance;
+import org.candlepin.gutterball.report.dto.ConsumerTrendComplianceDto;
 
 import org.jukito.JukitoRunner;
 import org.junit.Before;
@@ -35,7 +36,6 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
@@ -164,13 +164,14 @@ public class ConsumerTrendReportTest extends DatabaseTestFixture {
         when(params.getFirst("end_date")).thenReturn(onDateString);
         when(params.get("end_date")).thenReturn(Arrays.asList(onDateString));
 
-        ConsumerTrendReportResult result = report.run(params);
+        ConsumerTrendReportResult<ConsumerTrendComplianceDto> result =
+                (ConsumerTrendReportResult<ConsumerTrendComplianceDto>) report.run(params);
         assertEquals(2, result.keySet().size());
 
         List<String> foundConsumers = new ArrayList<String>();
         for (String uuid : result.keySet()) {
             // There should only be one snapshot
-            Set<Compliance> snapshots = result.get(uuid);
+            List<ConsumerTrendComplianceDto> snapshots = result.get(uuid);
             assertEquals(1, snapshots.size());
             foundConsumers.add(uuid);
         }
@@ -179,7 +180,8 @@ public class ConsumerTrendReportTest extends DatabaseTestFixture {
 
     @Test
     public void testGetAllStatusReports() {
-        ConsumerTrendReportResult result = report.run(mock(MultivaluedMap.class));
+        ConsumerTrendReportResult<ConsumerTrendComplianceDto> result =
+            (ConsumerTrendReportResult<ConsumerTrendComplianceDto>) report.run(mock(MultivaluedMap.class));
         HashMap<String, Integer> expectedUuidsNumReports = new HashMap<String, Integer>() {
             {
                 put("c1", 3);
@@ -193,12 +195,10 @@ public class ConsumerTrendReportTest extends DatabaseTestFixture {
         assertEquals(expectedUuidsNumReports.keySet(), result.keySet());
 
         for (String uuid : result.keySet()) {
-            Set<Compliance> snapshots = result.get(uuid);
+            List<ConsumerTrendComplianceDto> snapshots = result.get(uuid);
             assertEquals((int) expectedUuidsNumReports.get(uuid), snapshots.size());
         }
     }
-
-
 
     @Test
     public void testGetStatusReportsTimeframe() {
@@ -216,7 +216,8 @@ public class ConsumerTrendReportTest extends DatabaseTestFixture {
         when(params.containsKey("end_date")).thenReturn(true);
         when(params.getFirst("end_date")).thenReturn(endDateString);
         when(params.get("end_date")).thenReturn(Arrays.asList(endDateString));
-        ConsumerTrendReportResult result = report.run(params);
+        ConsumerTrendReportResult<ConsumerTrendComplianceDto> result =
+            (ConsumerTrendReportResult<ConsumerTrendComplianceDto>) report.run(params);
         HashMap<String, Integer> expectedUuidsNumReports = new HashMap<String, Integer>() {
             {
                 put("c2", 1);
@@ -229,9 +230,48 @@ public class ConsumerTrendReportTest extends DatabaseTestFixture {
         assertEquals(expectedUuidsNumReports.keySet(), result.keySet());
 
         for (String uuid : result.keySet()) {
-            Set<Compliance> snapshots = result.get(uuid);
+            List<ConsumerTrendComplianceDto> snapshots = result.get(uuid);
             assertEquals((int) expectedUuidsNumReports.get(uuid), snapshots.size());
         }
+    }
+
+    @Test
+    public void testDefaultResultSetContainsCustomMap() {
+        MultivaluedMap<String, String> params = mock(MultivaluedMap.class);
+        when(params.containsKey("rtype")).thenReturn(false);
+
+        String uuid = "c3";
+        when(params.containsKey("consumer_uuid")).thenReturn(true);
+        when(params.get("consumer_uuid")).thenReturn(Arrays.asList(uuid));
+
+        createComplianceSnapshot(new Date(), uuid, "an-owner", "valid");
+        ConsumerTrendReportResult<ConsumerTrendComplianceDto> result =
+            (ConsumerTrendReportResult<ConsumerTrendComplianceDto>) report.run(params);
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        List<ConsumerTrendComplianceDto> firstCompliance = result.get(result.keySet().iterator().next());
+        // Not a fan of testing this way, but, if no ClassCastException then we are good.
+        ConsumerTrendComplianceDto r = firstCompliance.get(0);
+    }
+
+    @Test
+    public void testCustomResultSetContainsComplianceObjects() {
+        MultivaluedMap<String, String> params = mock(MultivaluedMap.class);
+        when(params.containsKey("rtype")).thenReturn(true);
+        when(params.getFirst("rtype")).thenReturn("custom");
+
+        String uuid = "c3";
+        when(params.containsKey("consumer_uuid")).thenReturn(true);
+        when(params.get("consumer_uuid")).thenReturn(Arrays.asList(uuid));
+
+        createComplianceSnapshot(new Date(), uuid, "an-owner", "valid");
+        ConsumerTrendReportResult<Compliance> result =
+            (ConsumerTrendReportResult<Compliance>) report.run(params);
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        List<Compliance> firstCompliance = result.get(result.keySet().iterator().next());
+        // Not a fan of testing this way, but, if no ClassCastException then we are good.
+        Compliance c = firstCompliance.get(0);
     }
 
     private String formatDate(Date date) {

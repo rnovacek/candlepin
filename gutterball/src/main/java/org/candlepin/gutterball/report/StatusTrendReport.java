@@ -127,7 +127,8 @@ public class StatusTrendReport extends Report<StatusTrendReportResult> {
     }
 
     @Override
-    protected StatusTrendReportResult execute(MultivaluedMap<String, String> queryParams) {
+    protected StatusTrendReportResult execute(
+            MultivaluedMap<String, String> queryParams) {
         Map<String, String> attributes = new HashMap<String, String>();
 
         TimeZone timezone = this.parseTimeZone(queryParams.getFirst("timezone"));

@@ -19,9 +19,12 @@ import static org.junit.Assert.*;
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
+import org.candlepin.gutterball.TestUtils;
 import org.candlepin.gutterball.curator.ComplianceSnapshotCurator;
 import org.candlepin.gutterball.guice.I18nProvider;
+import org.candlepin.gutterball.model.ConsumerState;
 import org.candlepin.gutterball.model.snapshot.Compliance;
+import org.candlepin.gutterball.report.dto.ConsumerStatusComplianceDto;
 
 import org.jukito.JukitoModule;
 import org.jukito.JukitoRunner;
@@ -33,6 +36,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -127,11 +131,47 @@ public class ConsumerStatusReportTest {
         List<String> uuids = null;
         List<String> owners = null;
 
-        MultiRowResult<Compliance> results = report.run(params);
+        report.run(params);
         verify(complianceSnapshotCurator).getSnapshotsOnDate(any(Date.class),
                 eq(uuids), eq(owners),
                 eq(Arrays.asList("partial")));
         verifyNoMoreInteractions(complianceSnapshotCurator);
+    }
+
+    @Test
+    public void testDefaultResultSetContainsCustomMap() {
+        MultivaluedMap<String, String> params = mock(MultivaluedMap.class);
+        when(params.containsKey("rtype")).thenReturn(false);
+
+        List<Compliance> complianceList = new LinkedList<Compliance>();
+        complianceList.add(TestUtils.createComplianceSnapshot(new Date(), "abcd", "an-owner", "valid",
+                new ConsumerState("abcd", "an-owner", new Date())));
+
+        when(complianceSnapshotCurator.getSnapshotsOnDate(any(Date.class), any(List.class),
+                any(List.class), any(List.class))).thenReturn(complianceList);
+
+        MultiRowResult<? extends Object> result = report.run(params);
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0) instanceof ConsumerStatusComplianceDto);
+    }
+
+    @Test
+    public void testCustomResultSetContainsComplianceObjects() {
+        MultivaluedMap<String, String> params = mock(MultivaluedMap.class);
+        when(params.containsKey("rtype")).thenReturn(true);
+        when(params.getFirst("rtype")).thenReturn("custom");
+
+        List<Compliance> complianceList = new LinkedList<Compliance>();
+        complianceList.add(TestUtils.createComplianceSnapshot(new Date(), "abcd", "an-owner", "valid"));
+
+        when(complianceSnapshotCurator.getSnapshotsOnDate(any(Date.class), any(List.class),
+                any(List.class), any(List.class))).thenReturn(complianceList);
+
+        MultiRowResult<? extends Object> result = report.run(params);
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        assertTrue(result.get(0) instanceof Compliance);
     }
 
     private String formatDate(Date date) {

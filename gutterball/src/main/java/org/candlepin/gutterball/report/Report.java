@@ -77,7 +77,14 @@ public abstract class Report<R extends ReportResult> {
 
     public R run(MultivaluedMap<String, String> queryParameters) {
         validateParameters(queryParameters);
-        return execute(queryParameters);
+
+        boolean custom = false;
+        if (queryParameters.containsKey("rtype")) {
+            String rtype = queryParameters.getFirst("rtype");
+            custom = rtype != null && "custom".equalsIgnoreCase(rtype);
+        }
+
+        return custom ? executeWithCustomResults(queryParameters) : execute(queryParameters);
     }
 
     /**
@@ -94,10 +101,25 @@ public abstract class Report<R extends ReportResult> {
 
     /**
      * Runs this report with the provided query parameters. All parameters will
-     * have already been validated.
+     * have already been validated. The intent of this method is to allow returning
+     * customized report results using attribute filtering.
+     *
+     * If subclasses do not override this method, it will default to running
+     * execute.
      *
      * @param queryParameters
      * @return a {@link ReportResult} containing the results of the query.
+     */
+    protected R executeWithCustomResults(MultivaluedMap<String, String> queryParameters) {
+        return execute(queryParameters);
+    }
+
+    /**
+     * Runs this report with the provided query parameters. All parameters will
+     * have already been validated.
+     *
+     * @param queryParameters
+     * @return
      */
     protected abstract R execute(MultivaluedMap<String, String> queryParameters);
 

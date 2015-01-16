@@ -18,12 +18,14 @@ package org.candlepin.gutterball.report;
 import org.candlepin.gutterball.curator.ComplianceSnapshotCurator;
 import org.candlepin.gutterball.model.snapshot.Compliance;
 import org.candlepin.gutterball.model.snapshot.ComplianceReason;
+import org.candlepin.gutterball.report.dto.ConsumerStatusComplianceDto;
 
 import com.google.inject.Inject;
 
 import org.xnap.commons.i18n.I18n;
 
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
 
 import javax.inject.Provider;
@@ -32,7 +34,7 @@ import javax.ws.rs.core.MultivaluedMap;
 /**
  * ConsumerStatusListReport
  */
-public class ConsumerStatusReport extends Report<MultiRowResult<Compliance>> {
+public class ConsumerStatusReport extends Report<MultiRowResult<? extends Object>> {
 
     private ComplianceSnapshotCurator complianceSnapshotCurator;
     private StatusReasonMessageGenerator messageGenerator;
@@ -81,20 +83,9 @@ public class ConsumerStatusReport extends Report<MultiRowResult<Compliance>> {
     }
 
     @Override
-    protected MultiRowResult<Compliance> execute(MultivaluedMap<String, String> queryParams) {
-        // At this point we would execute a lookup against the DW data store to formulate
-        // the report result set.
-
-        List<String> consumerIds = queryParams.get("consumer_uuid");
-        List<String> statusFilters = queryParams.get("status");
-        List<String> ownerFilters = queryParams.get("owner");
-
-        Date targetDate = queryParams.containsKey("on_date") ?
-            parseDateTime(queryParams.getFirst("on_date")) : new Date();
-
-        List<Compliance> snaps = complianceSnapshotCurator.getSnapshotsOnDate(targetDate,
-                consumerIds, ownerFilters, statusFilters);
-
+    protected MultiRowResult<Compliance> executeWithCustomResults(MultivaluedMap<String,
+        String> queryParams) {
+        List<Compliance> snaps = getComplianceSnapshots(queryParams);
         for (Compliance cs : snaps) {
             for (ComplianceReason cr : cs.getStatus().getReasons()) {
                 messageGenerator.setMessage(cs.getConsumer(), cr);
@@ -102,5 +93,32 @@ public class ConsumerStatusReport extends Report<MultiRowResult<Compliance>> {
         }
 
         return new MultiRowResult<Compliance>(snaps);
+    }
+
+    @Override
+    protected MultiRowResult<ConsumerStatusComplianceDto> execute(
+            MultivaluedMap<String, String> queryParams) {
+        List<Compliance> snaps = getComplianceSnapshots(queryParams);
+
+        List<ConsumerStatusComplianceDto> rows = new LinkedList<ConsumerStatusComplianceDto>();
+        for (Compliance snap : snaps) {
+            rows.add(new ConsumerStatusComplianceDto(snap));
+
+            // TODO: Should look into evicting the snapshot so that it'll get
+            //       GC'd sooner.
+        }
+        return new MultiRowResult<ConsumerStatusComplianceDto>(rows);
+    }
+
+    protected List<Compliance> getComplianceSnapshots(MultivaluedMap<String, String> queryParams) {
+        List<String> consumerIds = queryParams.get("consumer_uuid");
+        List<String> statusFilters = queryParams.get("status");
+        List<String> ownerFilters = queryParams.get("owner");
+
+        Date targetDate = queryParams.containsKey("on_date") ?
+            parseDateTime(queryParams.getFirst("on_date")) : new Date();
+
+        return complianceSnapshotCurator.getSnapshotsOnDate(targetDate, consumerIds, ownerFilters,
+                statusFilters);
     }
 }

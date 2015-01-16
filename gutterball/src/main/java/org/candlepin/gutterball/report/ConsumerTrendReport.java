@@ -17,14 +17,18 @@ package org.candlepin.gutterball.report;
 import org.candlepin.gutterball.curator.ComplianceSnapshotCurator;
 import org.candlepin.gutterball.model.snapshot.Compliance;
 import org.candlepin.gutterball.model.snapshot.ComplianceReason;
+import org.candlepin.gutterball.report.dto.ConsumerTrendComplianceDto;
 
 import com.google.inject.Inject;
 
 import org.xnap.commons.i18n.I18n;
 
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Provider;
@@ -33,7 +37,7 @@ import javax.ws.rs.core.MultivaluedMap;
 /**
  * ConsumerTrendReport
  */
-public class ConsumerTrendReport extends Report<ConsumerTrendReportResult> {
+public class ConsumerTrendReport extends Report<ConsumerTrendReportResult<? extends Object>> {
 
     private ComplianceSnapshotCurator snapshotCurator;
     private StatusReasonMessageGenerator messageGenerator;
@@ -90,8 +94,69 @@ public class ConsumerTrendReport extends Report<ConsumerTrendReportResult> {
     }
 
     @Override
-    protected ConsumerTrendReportResult execute(MultivaluedMap<String, String> queryParams) {
+    protected ConsumerTrendReportResult<Compliance> executeWithCustomResults(MultivaluedMap<String,
+        String> queryParams) {
+        ConsumerTrendReportResult<Compliance> result = new ConsumerTrendReportResult<Compliance>();
+        Set<Compliance> forTimeSpan = getComplianceSnaps(queryParams);
+        for (Compliance cs : forTimeSpan) {
+            for (ComplianceReason cr : cs.getStatus().getReasons()) {
+                messageGenerator.setMessage(cs.getConsumer(), cr);
+            }
+            result.add(cs.getConsumer().getUuid(), cs);
+        }
 
+        for (List<Compliance> val : result.values()) {
+            Collections.sort(val, new Comparator<Compliance>() {
+
+                @Override
+                public int compare(Compliance o1, Compliance o2) {
+                    // descending
+                    return o2.getStatus().getDate().compareTo(o1.getStatus().getDate());
+                }
+
+            });
+        }
+
+        return result;
+    }
+
+    @Override
+    protected ConsumerTrendReportResult<ConsumerTrendComplianceDto> execute(
+        MultivaluedMap<String, String> queryParams) {
+
+        ConsumerTrendReportResult<ConsumerTrendComplianceDto> result =
+            new ConsumerTrendReportResult<ConsumerTrendComplianceDto>();
+        Set<Compliance> forTimeSpan = getComplianceSnaps(queryParams);
+        for (Compliance cs : forTimeSpan) {
+
+            for (ComplianceReason cr : cs.getStatus().getReasons()) {
+                messageGenerator.setMessage(cs.getConsumer(), cr);
+            }
+            result.add(cs.getConsumer().getUuid(), new ConsumerTrendComplianceDto(cs));
+        }
+
+        for (List<ConsumerTrendComplianceDto> val : result.values()) {
+            Collections.sort(val, new Comparator<ConsumerTrendComplianceDto>() {
+
+                @Override
+                public int compare(ConsumerTrendComplianceDto o1, ConsumerTrendComplianceDto o2) {
+                    Date d1 = getDate(o1);
+                    Date d2 = getDate(o2);
+                    // descending
+                    return d2.compareTo(d1);
+                }
+
+                private Date getDate(ConsumerTrendComplianceDto complianceData) {
+                    Map<String, Object> status = (Map<String, Object>) complianceData.get("status");
+                    return (Date) status.get("date");
+                }
+
+            });
+        }
+        return result;
+    }
+
+    private Set<Compliance> getComplianceSnaps(MultivaluedMap<String, String> queryParams) {
         List<String> consumerIds = queryParams.get("consumer_uuid");
         List<String> ownerFilters = queryParams.get("owner");
 
@@ -111,17 +176,8 @@ public class ConsumerTrendReport extends Report<ConsumerTrendReportResult> {
             endDate = parseDateTime(queryParams.getFirst("end_date"));
         }
 
-
-        ConsumerTrendReportResult result = new ConsumerTrendReportResult();
-        Set<Compliance> forTimeSpan = snapshotCurator.getComplianceForTimespan(
+        return snapshotCurator.getComplianceForTimespan(
                 startDate, endDate, consumerIds, ownerFilters);
-        for (Compliance cs : forTimeSpan) {
-            for (ComplianceReason cr : cs.getStatus().getReasons()) {
-                messageGenerator.setMessage(cs.getConsumer(), cr);
-            }
-            result.add(cs.getConsumer().getUuid(), cs);
-        }
-        return result;
     }
 
 }
