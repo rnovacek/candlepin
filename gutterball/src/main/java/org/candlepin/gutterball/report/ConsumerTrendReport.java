@@ -37,7 +37,8 @@ import javax.ws.rs.core.MultivaluedMap;
 /**
  * ConsumerTrendReport
  */
-public class ConsumerTrendReport extends Report<ConsumerTrendReportResult<? extends Object>> {
+public class ConsumerTrendReport extends Report<ConsumerTrendReportResult<ConsumerTrendComplianceDto>,
+    ConsumerTrendReportResult<Compliance>> {
 
     private ComplianceSnapshotCurator snapshotCurator;
     private StatusReasonMessageGenerator messageGenerator;

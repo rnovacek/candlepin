@@ -15,6 +15,8 @@
 
 package org.candlepin.gutterball.report;
 
+import org.candlepin.common.exceptions.BadRequestException;
+
 import org.xnap.commons.i18n.I18n;
 
 import java.text.ParseException;
@@ -35,7 +37,7 @@ import javax.ws.rs.core.MultivaluedMap;
  * @param <R> result object returned when a report is run.
  *
  */
-public abstract class Report<R extends ReportResult> {
+public abstract class Report<D extends ReportResult, C extends ReportResult> {
 
     protected static final String REPORT_DATE_FORMAT = "yyyy-MM-dd";
     protected static final String REPORT_DATETIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
@@ -75,15 +77,13 @@ public abstract class Report<R extends ReportResult> {
         return this.parameters;
     }
 
-    public R run(MultivaluedMap<String, String> queryParameters) {
+    public ReportResult run(MultivaluedMap<String, String> queryParameters) {
         validateParameters(queryParameters);
 
         boolean custom = false;
         if (queryParameters.containsKey("rtype")) {
-            String rtype = queryParameters.getFirst("rtype");
-            custom = rtype != null && "custom".equalsIgnoreCase(rtype);
+            custom = "custom".equalsIgnoreCase(queryParameters.getFirst("rtype"));
         }
-
         return custom ? executeWithCustomResults(queryParameters) : execute(queryParameters);
     }
 
@@ -110,8 +110,8 @@ public abstract class Report<R extends ReportResult> {
      * @param queryParameters
      * @return a {@link ReportResult} containing the results of the query.
      */
-    protected R executeWithCustomResults(MultivaluedMap<String, String> queryParameters) {
-        return execute(queryParameters);
+    protected C executeWithCustomResults(MultivaluedMap<String, String> queryParameters) {
+        throw new BadRequestException(i18n.tr("Parameter {0} not supported by this report.", "rtype"));
     }
 
     /**
@@ -121,7 +121,7 @@ public abstract class Report<R extends ReportResult> {
      * @param queryParameters
      * @return
      */
-    protected abstract R execute(MultivaluedMap<String, String> queryParameters);
+    protected abstract D execute(MultivaluedMap<String, String> queryParameters);
 
     /**
      * Defines the {@link ReportParameter}s that are used by this report. These

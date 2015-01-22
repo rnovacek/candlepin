@@ -41,7 +41,7 @@ import javax.ws.rs.core.MultivaluedMap;
  * The status trend report shows the per-day counts of consumers, grouped by status, optionally
  * limited to a date range and/or filtered by select criteria.
  */
-public class StatusTrendReport extends Report<StatusTrendReportResult> {
+public class StatusTrendReport extends Report<StatusTrendReportResult, StatusTrendReportResult> {
     private static Logger log = LoggerFactory.getLogger(StatusTrendReport.class);
     private ComplianceSnapshotCurator curator;
 

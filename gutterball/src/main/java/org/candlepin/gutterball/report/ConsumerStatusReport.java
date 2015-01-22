@@ -34,7 +34,7 @@ import javax.ws.rs.core.MultivaluedMap;
 /**
  * ConsumerStatusListReport
  */
-public class ConsumerStatusReport extends Report<MultiRowResult<? extends Object>> {
+public class ConsumerStatusReport extends Report<MultiRowResult<ConsumerStatusComplianceDto>, MultiRowResult<Compliance>> {
 
     private ComplianceSnapshotCurator complianceSnapshotCurator;
     private StatusReasonMessageGenerator messageGenerator;

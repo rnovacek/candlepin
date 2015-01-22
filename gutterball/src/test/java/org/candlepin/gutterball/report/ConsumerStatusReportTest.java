@@ -150,7 +150,7 @@ public class ConsumerStatusReportTest {
         when(complianceSnapshotCurator.getSnapshotsOnDate(any(Date.class), any(List.class),
                 any(List.class), any(List.class))).thenReturn(complianceList);
 
-        MultiRowResult<? extends Object> result = report.run(params);
+        MultiRowResult result = (MultiRowResult) report.run(params);
         assertNotNull(result);
         assertFalse(result.isEmpty());
         assertTrue(result.get(0) instanceof ConsumerStatusComplianceDto);
@@ -168,7 +168,7 @@ public class ConsumerStatusReportTest {
         when(complianceSnapshotCurator.getSnapshotsOnDate(any(Date.class), any(List.class),
                 any(List.class), any(List.class))).thenReturn(complianceList);
 
-        MultiRowResult<? extends Object> result = report.run(params);
+        MultiRowResult result = (MultiRowResult) report.run(params);
         assertNotNull(result);
         assertFalse(result.isEmpty());
         assertTrue(result.get(0) instanceof Compliance);
