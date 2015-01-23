@@ -14,47 +14,44 @@
  */
 package org.candlepin.pinsetter.tasks;
 
-import static org.junit.Assert.*;
+import static org.mockito.Matchers.*;
+import static org.mockito.Mockito.*;
 
 import org.candlepin.controller.PoolManager;
 import org.candlepin.model.Consumer;
 import org.candlepin.model.Entitlement;
-import org.candlepin.model.EntitlementCurator;
 import org.candlepin.model.Owner;
-import org.candlepin.model.OwnerCurator;
 import org.candlepin.model.Pool;
 import org.candlepin.model.PoolAttribute;
 import org.candlepin.model.PoolCurator;
 import org.candlepin.model.PoolFilterBuilder;
 import org.candlepin.model.Product;
-import org.candlepin.test.DatabaseTestFixture;
 import org.candlepin.test.TestUtil;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.runners.MockitoJUnitRunner;
 
+import java.util.Arrays;
 import java.util.Date;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
-import javax.inject.Inject;
-
-
-public class UnmappedGuestEntitlementCleanerJobTest extends DatabaseTestFixture {
-
-    @Inject private UnmappedGuestEntitlementCleanerJob job;
-    @Inject private OwnerCurator ownerCurator;
-    @Inject private PoolCurator poolCurator;
-    @Inject private EntitlementCurator entitlementCurator;
-    @Inject private PoolManager poolManager;
+@RunWith(MockitoJUnitRunner.class)
+public class UnmappedGuestEntitlementCleanerJobTest {
+    @Mock private PoolCurator poolCurator;
+    @Mock private PoolManager poolManager;
 
     @Test
     public void testToExecute() throws Exception {
+        /* TODO This would be a more faithful test if we did it as a DatabaseFixtureTest.
+         * Unfortunately, there is some strange problem with deleted entitlements not actually
+         * being deleted from the in-memory DB. */
         Product product = TestUtil.createProduct();
 
-        Owner owner1 = createOwner();
-        ownerCurator.create(owner1);
-
-        Owner owner2 = createOwner();
-        ownerCurator.create(owner2);
+        Owner owner1 = new Owner("o1");
+        Owner owner2 = new Owner("o2");
 
         Pool p1 = TestUtil.createPool(owner1, product);
         Pool p2 = TestUtil.createPool(owner2, product);
@@ -62,47 +59,34 @@ public class UnmappedGuestEntitlementCleanerJobTest extends DatabaseTestFixture 
         p1.addAttribute(new PoolAttribute("unmapped_guest_only", "true"));
         p2.addAttribute(new PoolAttribute("unmapped_guest_only", "true"));
 
-        poolManager.createPool(p1);
-        poolManager.createPool(p2);
+        when(poolCurator.listByFilter(any(PoolFilterBuilder.class)))
+            .thenReturn(Arrays.asList(new Pool[] {p1, p2}));
 
         Date thirtySixHoursAgo = new Date(new Date().getTime() - 36L * 60L * 60L * 1000L);
         Date twelveHoursAgo =  new Date(new Date().getTime() - 12L * 60L * 60L * 1000L);
 
-        Entitlement e;
         Consumer c;
 
-        c = createConsumer(owner1);
+        c = TestUtil.createConsumer(owner1);
         c.setCreated(thirtySixHoursAgo);
 
-        e = createEntitlement(owner1, c, p1, null);
-        e.setQuantity(1);
-        entitlementCurator.create(e);
+        Entitlement e1 = TestUtil.createEntitlement(owner1, c, p1, null);
+        Set<Entitlement> entitlementSet1 = new HashSet<Entitlement>();
+        entitlementSet1.add(e1);
 
-        c = createConsumer(owner2);
+        p1.setEntitlements(entitlementSet1);
+
+        c = TestUtil.createConsumer(owner2);
         c.setCreated(twelveHoursAgo);
 
-        e = createEntitlement(owner2, c, p2, null);
-        e.setQuantity(1);
-        entitlementCurator.create(e);
+        Entitlement e2 = TestUtil.createEntitlement(owner2, c, p2, null);
+        Set<Entitlement> entitlementSet2 = new HashSet<Entitlement>();
+        entitlementSet2.add(e2);
 
-        poolCurator.refresh(p1);
-        poolCurator.refresh(p2);
+        p2.setEntitlements(entitlementSet2);
 
-        job.execute(null);
+        new UnmappedGuestEntitlementCleanerJob(poolCurator, poolManager).execute(null);
 
-        PoolFilterBuilder filters = new PoolFilterBuilder();
-        filters.addAttributeFilter("unmapped_guest_only", "true");
-
-        List<Pool> results = poolCurator.listByFilter(filters);
-        assertEquals(2, results.size());
-
-        int entitlements = 0;
-
-        for (Pool p : results) {
-            entitlements += p.getEntitlements().size();
-            assertTrue(p.hasAttribute("unmapped_guest_only"));
-        }
-
-        assertEquals(1, entitlements);
+        verify(poolManager).revokeEntitlement(e1);
     }
 }
