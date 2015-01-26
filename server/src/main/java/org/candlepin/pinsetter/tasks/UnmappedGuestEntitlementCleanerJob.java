@@ -14,8 +14,8 @@
  */
 package org.candlepin.pinsetter.tasks;
 
+import org.candlepin.controller.PoolManager;
 import org.candlepin.model.Entitlement;
-import org.candlepin.model.EntitlementCurator;
 import org.candlepin.model.Pool;
 import org.candlepin.model.PoolCurator;
 import org.candlepin.model.PoolFilterBuilder;
@@ -39,13 +39,12 @@ public class UnmappedGuestEntitlementCleanerJob extends KingpinJob {
     public static final String DEFAULT_SCHEDULE = "0 0 3/12 * * ?";
 
     private PoolCurator poolCurator;
-    private EntitlementCurator entitlementCurator;
+    private PoolManager poolManager;
 
     @Inject
-    public UnmappedGuestEntitlementCleanerJob(PoolCurator poolCurator,
-            EntitlementCurator entitlementCurator) {
+    public UnmappedGuestEntitlementCleanerJob(PoolCurator poolCurator, PoolManager manager) {
         this.poolCurator = poolCurator;
-        this.entitlementCurator = entitlementCurator;
+        this.poolManager = manager;
     }
 
     @Override
@@ -53,7 +52,7 @@ public class UnmappedGuestEntitlementCleanerJob extends KingpinJob {
         throws JobExecutionException {
         Date now = new Date();
         PoolFilterBuilder filters = new PoolFilterBuilder();
-        filters.addAttributeFilter("unmapped_guest_only", "true");
+        filters.addAttributeFilter("unmapped_guests_only", "true");
 
         List<Pool> unmappedGuestPools = poolCurator.listByFilter(filters);
         List<Entitlement> lapsedUnmappedGuestEntitlements = new ArrayList<Entitlement>();
@@ -66,7 +65,9 @@ public class UnmappedGuestEntitlementCleanerJob extends KingpinJob {
             }
         }
 
-        entitlementCurator.bulkDelete(lapsedUnmappedGuestEntitlements);
+        for (Entitlement e : lapsedUnmappedGuestEntitlements) {
+            poolManager.revokeEntitlement(e);
+        }
     }
 
     protected boolean isLapsed(Entitlement e, Date lapseDate) {
