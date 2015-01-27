@@ -70,7 +70,9 @@ public class UnmappedGuestEntitlementCleanerJob extends KingpinJob {
         }
     }
 
-    protected boolean isLapsed(Entitlement e, Date lapseDate) {
-        return e.getEndDate().before(lapseDate);
+    protected boolean isLapsed(Entitlement e, Date now) {
+        Date consumerCreation = e.getConsumer().getCreated();
+        Date lapseDate = new Date(consumerCreation.getTime() + 24L * 60L * 60L * 1000L);
+        return lapseDate.before(now);
     }
 }
