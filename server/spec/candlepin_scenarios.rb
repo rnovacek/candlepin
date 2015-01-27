@@ -30,7 +30,7 @@ module CandlepinMethods
       total_taken += wait_interval
       status = @cp.get_job(job_id)
       if states.include? status['state']
-        return
+        return status
       end
     end
   end
