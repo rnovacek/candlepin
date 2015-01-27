@@ -306,6 +306,27 @@ describe 'Consumer Resource' do
     cp_client.consume_pool(pool.id, {:quantity => 1}).size.should == 1
   end
 
+  it 'should allow consumer to bind to product async' do
+    owner = create_owner random_string('owner')
+    owner_client = user_client(owner, random_string('testowner'))
+    cp_client = consumer_client(owner_client, random_string('consumer123'), :system,
+                                nil, 'uname.machine' => 'x86_64')
+    prod = create_product(random_string('product'), random_string('product-multiple-arch'),
+                          :attributes => { :arch => 'i386, x86_64'})
+    @cp.create_subscription(owner['key'], prod.id)
+    @cp.refresh_pools(owner['key'])
+
+    job_create_result = cp_client.consume_product(prod.id, { :async => true })
+
+    puts job_create_result
+
+    job_finish_result  = wait_for_job(job_create_result['id'], 5)
+
+    puts job_finish_result
+    job_finish_result.state.should == 'SUCCESS'
+
+  end
+
   it 'updates consumer updated timestamp on bind' do
     consumer = @user1.register(random_string("meow"))
     consumer_client = Candlepin.new(nil, nil, consumer['idCert']['cert'], consumer['idCert']['key'])

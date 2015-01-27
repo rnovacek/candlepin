@@ -95,7 +95,10 @@ describe 'Job Status' do
     status['targetType'].should == "consumer"
     status['targetId'].should == system.uuid
 
-    wait_for_job(status['id'], 15)
+    
+   results = wait_for_job(status['id'], 15)
+   puts '#{results}'
+   puts results
   end
 
 

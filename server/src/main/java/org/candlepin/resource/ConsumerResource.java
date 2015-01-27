@@ -1435,6 +1435,9 @@ public class ConsumerResource {
         // HANDLE ASYNC
         //
         if (async) {
+        	log.debug("poolIdString: {}", poolIdString);
+        	log.debug("fromPools: {}", fromPools);
+        	log.debug("productIds: {}", productIds);
             JobDetail detail = null;
 
             if (poolIdString != null) {
