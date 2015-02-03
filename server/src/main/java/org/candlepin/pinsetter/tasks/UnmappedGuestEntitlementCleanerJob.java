@@ -22,6 +22,8 @@ import org.candlepin.model.PoolFilterBuilder;
 
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -37,6 +39,8 @@ import javax.inject.Inject;
 public class UnmappedGuestEntitlementCleanerJob extends KingpinJob {
     // Run at 3 AM and every 12 hours afterwards
     public static final String DEFAULT_SCHEDULE = "0 0 3/12 * * ?";
+
+    private static final Logger log = LoggerFactory.getLogger(UnmappedGuestEntitlementCleanerJob.class);
 
     private PoolCurator poolCurator;
     private PoolManager poolManager;
@@ -67,6 +71,14 @@ public class UnmappedGuestEntitlementCleanerJob extends KingpinJob {
 
         for (Entitlement e : lapsedUnmappedGuestEntitlements) {
             poolManager.revokeEntitlement(e);
+        }
+
+        if (lapsedUnmappedGuestEntitlements.size() > 0) {
+            log.info("Reaped {} unmapped guest entitlements due to expiration.",
+                lapsedUnmappedGuestEntitlements.size());
+        }
+        else {
+            log.debug("No unmapped guest entitlements need reaping.");
         }
     }
 
