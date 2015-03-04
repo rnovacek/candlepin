@@ -27,30 +27,40 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author mstead
+ * A subscription service adapter used by the importer. This adapter is used to
+ * provide a non-persisted collection of Subscriptions that are to be converted
+ * to pools.
  *
  */
 public class ImportSubscriptionServiceAdapter implements
         SubscriptionServiceAdapter {
 
-    private List<Subscription> subscriptions;
     private Map<String, Subscription> subsBySubId;
 
     public ImportSubscriptionServiceAdapter(List<Subscription> subs) {
-        this.subscriptions = subs;
-        for (Subscription sub : this.subscriptions) {
+        for (Subscription sub : subs) {
             subsBySubId.put(sub.getId(), sub);
         }
     }
 
     @Override
     public List<Subscription> getSubscriptions(Owner owner) {
-        return subscriptions;
+        List<Subscription> subs = new LinkedList<Subscription>();
+        for (Subscription sub : getSubscriptions()) {
+            if (sub.getOwner().equals(owner)) {
+                subs.add(sub);
+            }
+        }
+        return subs;
     }
 
     @Override
     public List<String> getSubscriptionIds(Owner owner) {
-        return new ArrayList<String>(subsBySubId.keySet());
+        List<String> subIds = new LinkedList<String>();
+        for (Subscription sub : getSubscriptions(owner)) {
+            subIds.add(sub.getId());
+        }
+        return subIds;
     }
 
     @Override
@@ -60,7 +70,7 @@ public class ImportSubscriptionServiceAdapter implements
 
     @Override
     public List<Subscription> getSubscriptions() {
-        return subscriptions;
+        return new ArrayList<Subscription>(subsBySubId.values());
     }
 
     @Override
@@ -75,7 +85,7 @@ public class ImportSubscriptionServiceAdapter implements
 
     @Override
     public void deleteSubscription(Subscription s) {
-        // no op for now.
+        subsBySubId.remove(s.getId());
     }
 
     @Override
@@ -101,14 +111,14 @@ public class ImportSubscriptionServiceAdapter implements
     @Override
     public List<Subscription> getSubscriptions(Product product) {
         List<Subscription> subs = new LinkedList<Subscription>();
-        for (Subscription sub : this.subscriptions) {
-            if (product.getUuid().equals(sub.getProduct().getUuid())) {
+        for (Subscription sub : getSubscriptions()) {
+            if (product.getId().equals(sub.getProduct().getId())) {
                 subs.add(sub);
                 continue;
             }
 
             for (Product p : sub.getProvidedProducts()) {
-                if (product.getUuid().equals(p.getUuid())) {
+                if (product.getId().equals(p.getId())) {
                     subs.add(sub);
                     break;
                 }

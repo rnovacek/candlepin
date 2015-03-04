@@ -427,12 +427,13 @@ public class Importer {
             throw new ImportConflictException(conflictExceptions);
         }
 
+        // Determine which subscriptions we will attempt to import. These subscripitons
+        // will not be stored in the DB, but will be handed off to the refresher to be
+        // processed and turned into pools.
+        //
         // If the consumer has no entitlements, this products directory will end up empty.
         // This also implies there will be no entitlements to import.
-        // TODO Set the subscription list from the entitlement importer.
-        SubscriptionServiceAdapter adapter =
-                new ImportSubscriptionServiceAdapter(new ArrayList<Subscription>());
-        Refresher refresher = poolManager.getRefresher(adapter);
+        List<Subscription> subsToImport = new LinkedList<Subscription>();
         Meta meta = mapper.readValue(metadata, Meta.class);
         if (importFiles.get(ImportFile.PRODUCTS.fileName()) != null) {
             ProductImporter importer = new ProductImporter(productCurator, contentCurator);
@@ -441,27 +442,19 @@ public class Importer {
                 importFiles.get(ImportFile.PRODUCTS.fileName()).listFiles(),
                 importer);
 
-            Set<Product> modifiedProducts = importer.getChangedProducts(productsToImport);
-            for (Product product : modifiedProducts) {
-                refresher.add(product);
-            }
-
-            importer.store(productsToImport);
-
             meta = mapper.readValue(metadata, Meta.class);
-            importEntitlements(owner, productsToImport, entitlements.listFiles(),
-                consumer, meta);
-
-            refresher.add(owner);
-            refresher.run();
+            subsToImport.addAll(importEntitlements(owner, productsToImport,
+                    entitlements.listFiles(), consumer, meta));
         }
         else {
             log.warn("No products found to import, skipping product import.");
             log.warn("No entitlements in manifest, removing all subscriptions for owner.");
-            importEntitlements(owner, new HashSet<Product>(), new File[]{}, consumer, meta);
-            refresher.add(owner);
-            refresher.run();
         }
+
+        SubscriptionServiceAdapter adapter = new ImportSubscriptionServiceAdapter(subsToImport);
+        Refresher refresher = poolManager.getRefresher(adapter);
+        refresher.add(owner);
+        refresher.run();
         return consumer;
     }
 
@@ -586,7 +579,7 @@ public class Importer {
         return productsToImport;
     }
 
-    public void importEntitlements(Owner owner, Set<Product> products, File[] entitlements,
+    public Set<Subscription> importEntitlements(Owner owner, Set<Product> products, File[] entitlements,
         ConsumerDto consumer, Meta meta)
         throws IOException, SyncDataFormatException {
         EntitlementImporter importer = new EntitlementImporter(subCurator, csCurator,
@@ -594,7 +587,7 @@ public class Importer {
 
         Map<String, Product> productsById = new HashMap<String, Product>();
         for (Product product : products) {
-            productsById.put(product.getUuid(), product);
+            productsById.put(product.getId(), product);
         }
 
         Set<Subscription> subscriptionsToImport = new HashSet<Subscription>();
@@ -612,8 +605,7 @@ public class Importer {
                 }
             }
         }
-
-        importer.store(owner, subscriptionsToImport);
+        return subscriptionsToImport;
     }
 
     /**
