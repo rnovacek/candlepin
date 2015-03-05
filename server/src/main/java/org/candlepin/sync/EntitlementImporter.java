@@ -14,7 +14,6 @@
  */
 package org.candlepin.sync;
 
-import org.candlepin.audit.EventSink;
 import org.candlepin.model.Branding;
 import org.candlepin.model.Cdn;
 import org.candlepin.model.CdnCurator;
@@ -25,7 +24,6 @@ import org.candlepin.model.EntitlementCertificate;
 import org.candlepin.model.Owner;
 import org.candlepin.model.Product;
 import org.candlepin.model.Subscription;
-import org.candlepin.model.SubscriptionCurator;
 import org.candlepin.model.SubscriptionsCertificate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,20 +45,14 @@ import java.util.Set;
 public class EntitlementImporter {
     private static Logger log = LoggerFactory.getLogger(EntitlementImporter.class);
 
-    private SubscriptionCurator subscriptionCurator;
     private CertificateSerialCurator csCurator;
     private CdnCurator cdnCurator;
-    private EventSink sink;
     private I18n i18n;
 
-    public EntitlementImporter(SubscriptionCurator subscriptionCurator,
-        CertificateSerialCurator csCurator, CdnCurator cdnCurator,
-        EventSink sink, I18n i18n) {
+    public EntitlementImporter(CertificateSerialCurator csCurator, CdnCurator cdnCurator, I18n i18n) {
 
-        this.subscriptionCurator = subscriptionCurator;
         this.csCurator = csCurator;
         this.cdnCurator = cdnCurator;
-        this.sink = sink;
         this.i18n = i18n;
     }
 

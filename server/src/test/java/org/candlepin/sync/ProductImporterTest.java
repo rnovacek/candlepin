@@ -14,8 +14,8 @@
  */
 package org.candlepin.sync;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 import org.candlepin.common.config.MapConfiguration;
 import org.candlepin.config.ConfigProperties;
@@ -38,8 +38,6 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
 /**
  * ProductImporterTest
  */
@@ -77,375 +75,25 @@ public class ProductImporterTest {
         assertEquals(product.getAttributes(), created.getAttributes());
     }
 
-    @Test
-    public void testNewProductCreated() throws Exception {
-        Product product = TestUtil.createProduct(owner);
-
-        String json = getJsonForProduct(product);
-        Reader reader = new StringReader(json);
-        Product created = importer.createObject(mapper, reader);
-        Set<Product> storeThese = new HashSet<Product>();
-        storeThese.add(created);
-        when(productCuratorMock.lookupById(product.getUuid())).thenReturn(null);
-        importer.store(storeThese);
-        verify(productCuratorMock).createOrUpdate(created);
-    }
-
-    @Test
-    public void testExistingProductUpdated() throws Exception {
-        Product product = TestUtil.createProduct(owner);
-        String json = getJsonForProduct(product);
-        Reader reader = new StringReader(json);
-
-        Product created = importer.createObject(mapper, reader);
-
-        // Dummy up some changes to this product:
-        String newProductName = "New Name";
-        created.setName(newProductName);
-
-        Set<Product> storeThese = new HashSet<Product>();
-        storeThese.add(created);
-
-        // Simulate the pre-existing product:
-        when(productCuratorMock.lookupById(product.getUuid())).thenReturn(product);
-
-        importer.store(storeThese);
-
-        verify(productCuratorMock).createOrUpdate(created);
-    }
-
-    @Test
-    public void testContentCreated() throws Exception {
-        Product product = TestUtil.createProduct(owner);
-        addContentTo(product);
-
-        String json = getJsonForProduct(product);
-        Reader reader = new StringReader(json);
-        Product created = importer.createObject(mapper, reader);
-        Content c = created.getProductContent().iterator().next().getContent();
-        Set<Product> storeThese = new HashSet<Product>();
-        storeThese.add(created);
-        importer.store(storeThese);
-
-        verify(contentCuratorMock).createOrUpdate(c);
-
-        assertEquals(new Long(1000), c.getMetadataExpire());
-    }
-
-    @Test
-    public void testExistingProductContentAdded() throws Exception {
-        Owner owner = new Owner("Test Corporation");
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        addContentTo(newProduct);
-        Content c = newProduct.getProductContent().iterator().next().getContent();
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> storeThese = new HashSet<Product>();
-        storeThese.add(newProduct);
-
-        importer.store(storeThese);
-
-        verify(productCuratorMock).createOrUpdate(newProduct);
-        verify(contentCuratorMock).createOrUpdate(c);
-    }
-
-    @Test
-    public void testGetChangedProductsNoNewProducts() {
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Set<Product> products = new HashSet<Product>();
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(0)).lookupById(oldProduct.getUuid());
-
-        assertTrue(changed.isEmpty());
-    }
-
-    @Test
-    public void testGetChangedProductsAllBrandNew() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(newProduct.getUuid())).thenReturn(null);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        assertTrue(changed.isEmpty());
-    }
-
-    @Test
-    public void testGetChangedProductsAllIdentical() {
-        Owner owner = new Owner("Test Corporation");
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(oldProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertTrue(changed.isEmpty());
-    }
-
-    @Test
-    public void testGetChangedProductsNameChanged() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name new", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsMultiplierChanged() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        oldProduct.setMultiplier(1L);
-        newProduct.setMultiplier(2L);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsAttributeAdded() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        newProduct.setAttribute("fake attr", "value");
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsAttributeRemoved() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        oldProduct.setAttribute("fake attr", "value");
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsAttributeModified() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        oldProduct.setAttribute("fake attr", "value");
-        newProduct.setAttribute("fake attr", "value new");
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsAttributeSwapped() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        oldProduct.setAttribute("fake attr", "value");
-        newProduct.setAttribute("other fake attr", "value");
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsContentAdded() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Content content = new Content();
-
-        newProduct.addContent(content);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsContentRemoved() {
-        Owner owner = new Owner("Test Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Content content = new Content();
-
-        oldProduct.addContent(content);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsContentSwapped() {
-        Owner owner = new Owner("Example-Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Content content = new Content(owner, "foobar", null, null, null, null, null, null, null);
-        Content content2 = new Content(owner, "baz", null, null, null, null, null, null, null);
-
-        oldProduct.addContent(content);
-        newProduct.addContent(content2);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testGetChangedProductsContentEnabledToggled() {
-        Owner owner = new Owner("Example-Corporation");
-        Product newProduct = TestUtil.createProduct("fake id", "fake name", owner);
-        Product oldProduct = TestUtil.createProduct("fake id", "fake name", owner);
-
-        Content content = new Content(owner, "foobar", null, null, null, null, null, null, null);
-
-        oldProduct.addContent(content);
-        newProduct.addEnabledContent(content);
-
-        Set<Product> products = new HashSet<Product>();
-        products.add(newProduct);
-
-        when(productCuratorMock.lookupById(oldProduct.getUuid())).thenReturn(oldProduct);
-
-        Set<Product> changed = importer.getChangedProducts(products);
-
-        verify(productCuratorMock, times(1)).lookupById(oldProduct.getUuid());
-
-        assertEquals(1, changed.size());
-    }
-
-    @Test
-    public void testVendorSetToUnknown() throws Exception {
-        Product product = TestUtil.createProduct(owner);
-        addNoVendorContentTo(product);
-
-        String json = getJsonForProduct(product);
-        Reader reader = new StringReader(json);
-        Product created = importer.createObject(mapper, reader);
-        Content c = created.getProductContent().iterator().next().getContent();
-        Set<Product> storeThese = new HashSet<Product>();
-        storeThese.add(created);
-        importer.store(storeThese);
-
-        verify(contentCuratorMock).createOrUpdate(c);
-
-        assertEquals("unknown", c.getVendor());
-    }
-
-    // Returns the Content object added
-    private void addContentTo(Product p) {
-        Owner owner = new Owner("Example-Corporation");
-        Content c = new Content(owner, "name", "100130", "label", "type",
-            "vendor", "url", "gpgurl", "arch");
-        c.setMetadataExpire(1000L);
-        p.getProductContent().add(new ProductContent(p, c, true));
-    }
-
-    // Returns the Content object added without vendor
-    private void addNoVendorContentTo(Product p) {
-        Owner owner = new Owner("Example-Corporation");
-        Content c = new Content(owner, "name", "100130", "label", "type",
-            "", "url", "gpgurl", "arch");
-        c.setMetadataExpire(1000L);
-        p.getProductContent().add(new ProductContent(p, c, true));
-    }
+// FIXME This test can be removed once product updates are put into the refresher. Make sure
+//       vendor is added to new code. For now, leave the test commented out.
+//    @Test
+//    public void testVendorSetToUnknown() throws Exception {
+//        Product product = TestUtil.createProduct(owner);
+//        addNoVendorContentTo(product);
+//
+//        String json = getJsonForProduct(product);
+//        Reader reader = new StringReader(json);
+//        Product created = importer.createObject(mapper, reader);
+//        Content c = created.getProductContent().iterator().next().getContent();
+//        Set<Product> storeThese = new HashSet<Product>();
+//        storeThese.add(created);
+//        importer.store(storeThese);
+//
+//        verify(contentCuratorMock).createOrUpdate(c);
+//
+//        assertEquals("unknown", c.getVendor());
+//    }
 
     private String getJsonForProduct(Product p) throws Exception {
         Writer writer = new StringWriter();
