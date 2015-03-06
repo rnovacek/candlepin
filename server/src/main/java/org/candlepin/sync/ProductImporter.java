@@ -20,9 +20,9 @@ import org.candlepin.model.ProductAttribute;
 import org.candlepin.model.ProductCurator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.io.IOException;
 import java.io.Reader;
+
 
 /**
  * ProductImporter
@@ -128,4 +128,5 @@ public class ProductImporter {
 //
 //        return false;
 //    }
+
 }

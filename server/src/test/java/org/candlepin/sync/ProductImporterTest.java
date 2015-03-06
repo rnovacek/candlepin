@@ -19,11 +19,9 @@ import static org.mockito.Mockito.mock;
 
 import org.candlepin.common.config.MapConfiguration;
 import org.candlepin.config.ConfigProperties;
-import org.candlepin.model.Content;
 import org.candlepin.model.ContentCurator;
 import org.candlepin.model.Owner;
 import org.candlepin.model.Product;
-import org.candlepin.model.ProductContent;
 import org.candlepin.model.ProductCurator;
 import org.candlepin.test.TestUtil;
 
@@ -94,6 +92,7 @@ public class ProductImporterTest {
 //
 //        assertEquals("unknown", c.getVendor());
 //    }
+
 
     private String getJsonForProduct(Product p) throws Exception {
         Writer writer = new StringWriter();
