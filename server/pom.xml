@@ -96,6 +96,7 @@
     <javax.mail-mail.version>1.4</javax.mail-mail.version>
     <org.mozilla-rhino.version>1.7R3</org.mozilla-rhino.version>
     <com.sun.xml.bind-jaxb-impl.version>2.1.12</com.sun.xml.bind-jaxb-impl.version>
+    <org.candlepin-candlepin-common.version>1.0.22</org.candlepin-candlepin-common.version>
     <postgresql-postgresql.version>9.0-801.jdbc4</postgresql-postgresql.version>
     <mysql-mysql-connector-java.version>5.1.26</mysql-mysql-connector-java.version>
   </properties>
@@ -464,6 +465,11 @@
       <groupId>com.sun.xml.bind</groupId>
       <artifactId>jaxb-impl</artifactId>
       <version>${com.sun.xml.bind-jaxb-impl.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.candlepin</groupId>
+      <artifactId>candlepin-common</artifactId>
+      <version>${org.candlepin-candlepin-common.version}</version>
     </dependency>
     <dependency>
       <groupId>postgresql</groupId>

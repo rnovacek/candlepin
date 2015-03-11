@@ -141,8 +141,6 @@ OAUTH= [group('oauth',
 
 QUARTZ = 'org.quartz-scheduler:quartz:jar:2.1.5'
 
-CANDLEPINCOMMON = 'org.candlepin:candlepin-common:jar:1.0.19'
-
 HORNETQ = [group('hornetq-server',
                  'hornetq-core-client',
                  'hornetq-commons',
@@ -266,7 +264,6 @@ define "candlepin" do
     msgfmt.resource = "#{project.group}.gutterball.i18n.Messages"
 
     compile_classpath = [
-      CANDLEPINCOMMON,
       AMQP,
       COLLECTIONS,
       COMMONS,
@@ -357,7 +354,6 @@ define "candlepin" do
 
     ### Building
     compile_classpath = [
-      CANDLEPINCOMMON,
       AMQP,
       BOUNCYCASTLE,
       COLLECTIONS,
