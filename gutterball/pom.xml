@@ -3,8 +3,9 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.candlepin</groupId>
   <artifactId>gutterball</artifactId>
-  <version>1.0.9</version>
+  <version>1.0.12</version>
   <properties>
+    <org.candlepin-candlepin-common.version>1.0.19</org.candlepin-candlepin-common.version>
     <org.apache.qpid-qpid-common.version>0.30</org.apache.qpid-qpid-common.version>
     <org.apache.qpid-qpid-client.version>0.30</org.apache.qpid-qpid-client.version>
     <org.apache.mina-mina-core.version>1.0.1</org.apache.mina-mina-core.version>
@@ -73,6 +74,11 @@
     <net.oauth.core-oauth-provider.version>20100527</net.oauth.core-oauth-provider.version>
   </properties>
   <dependencies>
+    <dependency>
+      <groupId>org.candlepin</groupId>
+      <artifactId>candlepin-common</artifactId>
+      <version>${org.candlepin-candlepin-common.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.qpid</groupId>
       <artifactId>qpid-common</artifactId>
