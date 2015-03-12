@@ -4,24 +4,6 @@
   <groupId>org.candlepin</groupId>
   <artifactId>candlepin</artifactId>
   <version>0.9.46</version>
-  <build>
-      <pluginManagement>
-          <plugins>
-              <plugin>
-                  <groupId>org.apache.maven.plugins</groupId>
-                  <artifactId>maven-compiler-plugin</artifactId>
-                  <configuration>
-                      <source>1.5</source>
-                      <target>1.5</target>
-                      <excludes>
-                          <exclude>**/apicrawl/*.java</exclude>
-                      </excludes>
-                  </configuration>
-              </plugin>
-          </plugins>
-      </pluginManagement>
-  </build>
-
   <properties>
     <org.candlepin-candlepin-common.version>1.0.19</org.candlepin-candlepin-common.version>
     <org.apache.qpid-qpid-common.version>0.30</org.apache.qpid-qpid-common.version>
