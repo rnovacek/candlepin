@@ -261,8 +261,6 @@ define "candlepin" do
 
     compile.with(compile_classpath)
     compile.with(project('common'))
-
-    pom.artifacts << package(:jar)
   end
 
   desc "The Gutterball Reporting Engine"
