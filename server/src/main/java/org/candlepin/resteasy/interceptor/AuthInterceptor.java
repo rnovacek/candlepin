@@ -31,7 +31,6 @@ import org.candlepin.common.filter.LoggingFilter;
 import org.candlepin.common.filter.ServletLogger;
 import org.candlepin.common.filter.TeeHttpServletRequest;
 import org.candlepin.config.ConfigProperties;
-import org.candlepin.guice.HttpMethodMatcher;
 import org.candlepin.model.Consumer;
 import org.candlepin.model.ConsumerCurator;
 import org.candlepin.model.DeletedConsumerCurator;
@@ -55,18 +54,14 @@ import org.candlepin.util.Util;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 
-import org.jboss.resteasy.annotations.interception.SecurityPrecedence;
-import org.jboss.resteasy.annotations.interception.ServerInterceptor;
 import org.jboss.resteasy.core.ResourceMethodInvoker;
-import org.jboss.resteasy.core.ServerResponse;
-import org.jboss.resteasy.spi.Failure;
-import org.jboss.resteasy.spi.HttpRequest;
+import org.jboss.resteasy.core.interception.PostMatchContainerRequestContext;
 import org.jboss.resteasy.spi.HttpResponse;
 import org.jboss.resteasy.spi.MethodInjector;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
-import org.jboss.resteasy.spi.interception.AcceptedByMethod;
-import org.jboss.resteasy.spi.interception.PreProcessInterceptor;
-import org.jboss.resteasy.spi.metadata.ResourceLocator;
+import org.jboss.resteasy.spi.metadata.ResourceBuilder;
+import org.jboss.resteasy.spi.metadata.ResourceClass;
+import org.jboss.resteasy.spi.metadata.ResourceMethod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -83,11 +78,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Priority;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
-import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.Priorities;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.core.Request;
 import javax.ws.rs.ext.Provider;
 
 /**
@@ -95,9 +94,8 @@ import javax.ws.rs.ext.Provider;
  * that principal has access to the called method.
  */
 @Provider
-@ServerInterceptor
-@SecurityPrecedence
-public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod {
+@Priority(Priorities.AUTHENTICATION)
+public class AuthInterceptor implements ContainerRequestFilter {
     private static Logger log = LoggerFactory.getLogger(AuthInterceptor.class);
 
     private Injector injector;
@@ -128,17 +126,6 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
 
         createStoreMap();
         setupAuthStrategies();
-    }
-
-    /**
-     * Note that this method is called during application deployment and not
-     * every time a method is invoked.
-     *
-     * @return true if the method has an HttpMethod or HttpMethod descendant annotation.
-     */
-    @Override
-    public boolean accept(Class declaring, Method method) {
-        return new HttpMethodMatcher().matches(method);
     }
 
     /**
@@ -190,23 +177,20 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
         storeMap.put(Product.class, new ProductStore());
     }
 
-    /**
-     * Sets the principal for the request and verifies that the principal
-     * has access to the items in the request.
-     *
-     * @throws WebApplicationException when no auths result in a valid principal
-     * @throws Failure when there is an unknown failure in the code
-     * @return the Server Response
-     */
-    public ServerResponse preProcess(HttpRequest request, ResourceMethodInvoker method)
-        throws Failure, WebApplicationException {
 
-        SecurityHole securityHole = AuthUtil.checkForSecurityHoleAnnotation(
-            method.getMethod());
+    @Override
+    public void filter(ContainerRequestContext initialContext) {
+        PostMatchContainerRequestContext context = (PostMatchContainerRequestContext) initialContext;
 
-        Principal principal = establishPrincipal(request, method, securityHole);
+        ResourceMethodInvoker invoker = context.getResourceMethod();
+        Request req = context.getRequest();
+
+        SecurityHole securityHole = AuthUtil.checkForSecurityHoleAnnotation(invoker.getMethod());
+
+        // TODO need to use SecurityContext for this
+        Principal principal = establishPrincipal(context, securityHole);
         try {
-            verifyAccess(method.getMethod(), principal, getArguments(request, method),
+            verifyAccess(invoker.getMethod(), principal, getArguments(context),
                 securityHole);
         }
         finally {
@@ -234,17 +218,14 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
                 }
             }
         }
-
-        return null;
     }
 
-    protected Principal establishPrincipal(HttpRequest request, ResourceMethodInvoker method,
+    protected Principal establishPrincipal(PostMatchContainerRequestContext context,
         SecurityHole securityHole) {
-
         Principal principal = null;
 
         if (log.isDebugEnabled()) {
-            log.debug("Authentication check for " + request.getUri().getPath());
+            log.debug("Authentication check for {}", context.getUriInfo().getPath());
         }
 
         // Check for anonymous calls, and let them through
@@ -256,7 +237,7 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
             // This method is not anonymous, so attempt to
             // establish the identity.
             for (AuthProvider provider : providers) {
-                principal = provider.getPrincipal(request);
+                principal = provider.getPrincipal(context.getHttpRequest());
 
                 if (principal != null) {
                     break;
@@ -342,8 +323,7 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
                     }
                     if (argument instanceof String) {
                         String verifyParam = (String) argument;
-                        log.debug("Verifying " + requiredAccess +
-                            " access to " + verifyType + ": " + verifyParam);
+                        log.debug("Verifying {} access to {}: {}", requiredAccess, verifyType, verifyParam);
 
                         Object entity = storeMap.get(verifyType).lookup(verifyParam);
                         // If the request is just for a single item, throw an exception
@@ -356,8 +336,7 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
                             if (typeName.equals("Owner")) {
                                 typeName = i18nProvider.get().tr("Organization");
                             }
-                            log.info("No such entity: " + typeName + " id: " +
-                                verifyParam);
+                            log.info("No such entity: {} with id {}", typeName, verifyParam);
 
                             throw new NotFoundException(i18nProvider.get().tr(
                                 "{0} with id {1} could not be found.",
@@ -368,8 +347,8 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
                     }
                     else {
                         Collection<String> verifyParams = (Collection<String>) argument;
-                        log.debug("Verifying " + requiredAccess +
-                            " access to collection of {}: {}", verifyType, verifyParams);
+                        log.debug("Verifying {} access to collection of {}: {}",
+                            requiredAccess, verifyType, verifyParams);
                         // If the request is for a list of items, we'll leave it
                         // up to the requester to determine if something is missing or not.
                         if (verifyParams != null && !verifyParams.isEmpty()) {
@@ -415,20 +394,34 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
      * method.
      *
      * @param request
-     * @param method
+     * @param methodInvoker
      * @return
      */
-    protected Object[] getArguments(HttpRequest request, ResourceMethodInvoker method) {
-        HttpResponse response =
-            ResteasyProviderFactory.getContextData(HttpResponse.class);
-        ResourceLocator locator =
-            ResteasyProviderFactory.getContextData(ResourceLocator.class);
+    protected Object[] getArguments(PostMatchContainerRequestContext context) {
+        ResourceMethodInvoker methodInvoker = context.getResourceMethod();
+
+        Class<?> methodClass = methodInvoker.getMethod().getDeclaringClass();
+
+        /* TODO Likely a problem here with locator vs. resource.  Looks like JAX-RS 2.0
+         * introduced some new "locator" concept that we need to be aware of.  Locators
+         * look to be like some way to break your paths down into pieces.  See
+         * https://jersey.java.net/documentation/latest/jaxrs-resources.html
+         */
+        ResourceClass resourceClass = ResourceBuilder.rootResourceFromAnnotations(methodClass);
+
+        ResourceMethod match = null;
+        for (ResourceMethod m : resourceClass.getResourceMethods()) {
+            if (m.getMethod().equals(methodInvoker.getMethod())) {
+                match = m;
+                break;
+            }
+        }
+
         ResteasyProviderFactory factory = ResteasyProviderFactory.getInstance();
+        MethodInjector methodInjector = factory.getInjectorFactory().createMethodInjector(match, factory);
 
-        MethodInjector methodInjector =
-            factory.getInjectorFactory().createMethodInjector(locator, factory);
-
-        return methodInjector.injectArguments(request, response);
+        HttpResponse response = ResteasyProviderFactory.getContextData(HttpResponse.class);
+        return methodInjector.injectArguments(context.getHttpRequest(), response);
     }
 
     protected void denyAccess(Principal principal, Method method) {
