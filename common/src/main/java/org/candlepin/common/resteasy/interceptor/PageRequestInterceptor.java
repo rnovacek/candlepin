@@ -22,7 +22,7 @@ import org.candlepin.common.paging.Paginate;
 import com.google.inject.Inject;
 
 import org.jboss.resteasy.annotations.interception.ServerInterceptor;
-import org.jboss.resteasy.core.ResourceMethod;
+import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.spi.Failure;
 import org.jboss.resteasy.spi.HttpRequest;
@@ -59,7 +59,7 @@ public class PageRequestInterceptor implements PreProcessInterceptor,
     }
 
     @Override
-    public ServerResponse preProcess(HttpRequest request, ResourceMethod method)
+    public ServerResponse preProcess(HttpRequest request, ResourceMethodInvoker method)
         throws Failure, WebApplicationException {
         PageRequest p = null;
 

@@ -41,7 +41,7 @@ import com.google.inject.Injector;
 import com.google.inject.Module;
 
 import org.jboss.resteasy.core.InjectorFactoryImpl;
-import org.jboss.resteasy.core.ResourceMethod;
+import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ValueInjector;
 import org.jboss.resteasy.mock.MockHttpRequest;
 import org.jboss.resteasy.spi.ApplicationException;
@@ -50,6 +50,7 @@ import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.HttpResponse;
 import org.jboss.resteasy.spi.MethodInjector;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
+import org.jboss.resteasy.spi.metadata.ResourceLocator;
 import org.junit.Before;
 import org.junit.Test;
 import org.xnap.commons.i18n.I18n;
@@ -83,12 +84,13 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
         private StubMethodInjector stub;
 
         public StubInjectorFactoryImpl(ResteasyProviderFactory factory) {
-            super(factory);
+            super();
             stub = new StubMethodInjector();
         }
 
         @Override
-        public MethodInjector createMethodInjector(Class root, Method method) {
+        public MethodInjector createMethodInjector(ResourceLocator method,
+                ResteasyProviderFactory factory) {
             return stub;
         }
     }
@@ -121,6 +123,12 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
         public ValueInjector[] getParams() {
             return null;
         }
+
+        @Override
+        public boolean expectsBody() {
+            // TODO Auto-generated method stub
+            return false;
+        }
     }
 
     protected Module getGuiceOverrideModule() {
@@ -135,9 +143,10 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
         permFactory = mock(PermissionFactory.class);
         interceptor = new AuthInterceptor(config, usa,
             consumerCurator, dcc, injector, i18nProvider);
+        ResourceLocator locator = mock(ResourceLocator.class);
 
-        ResteasyProviderFactory.getInstance().registerProvider(
-            StubInjectorFactoryImpl.class);
+        ResteasyProviderFactory.getInstance().registerProviderInstance(
+            new StubInjectorFactoryImpl(ResteasyProviderFactory.getInstance()));
         methodInjector = (StubMethodInjector)
             ResteasyProviderFactory.getInstance().getInjectorFactory()
             .createMethodInjector(null, null);
@@ -155,7 +164,7 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
         Method method = FakeResource.class.getMethod("someMethod", String.class);
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status");
-        ResourceMethod rmethod = mock(ResourceMethod.class);
+        ResourceMethodInvoker rmethod = mock(ResourceMethodInvoker.class);
         when(rmethod.getMethod()).thenReturn(method);
         Class clazz = FakeResource.class;
         when(rmethod.getResourceClass()).thenReturn(clazz);
@@ -169,7 +178,7 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status");
         req.header("Authorization", "BASIC QWxhZGRpbjpvcGVuIHNlc2FtZQ==");
-        ResourceMethod rmethod = mock(ResourceMethod.class);
+        ResourceMethodInvoker rmethod = mock(ResourceMethodInvoker.class);
         when(rmethod.getMethod()).thenReturn(method);
         Class clazz = FakeResource.class;
         when(rmethod.getResourceClass()).thenReturn(clazz);
@@ -189,7 +198,7 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
         Method method = FakeResource.class.getMethod("noAuthMethod", String.class);
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status");
-        ResourceMethod rmethod = mock(ResourceMethod.class);
+        ResourceMethodInvoker rmethod = mock(ResourceMethodInvoker.class);
         when(rmethod.getMethod()).thenReturn(method);
         Class clazz = FakeResource.class;
         when(rmethod.getResourceClass()).thenReturn(clazz);
@@ -206,7 +215,7 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status");
         req.header("Authorization", "BASIC QWxhZGRpbjpvcGVuIHNlc2FtZQ==");
-        ResourceMethod rmethod = mock(ResourceMethod.class);
+        ResourceMethodInvoker rmethod = mock(ResourceMethodInvoker.class);
         when(rmethod.getMethod()).thenReturn(method);
         Class clazz = FakeResource.class;
         when(rmethod.getResourceClass()).thenReturn(clazz);
@@ -226,7 +235,7 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
             "someConsumerOnlyMethod", String.class);
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status");
-        ResourceMethod rmethod = mock(ResourceMethod.class);
+        ResourceMethodInvoker rmethod = mock(ResourceMethodInvoker.class);
         when(rmethod.getMethod()).thenReturn(method);
         Class clazz = FakeResource.class;
         when(rmethod.getResourceClass()).thenReturn(clazz);
@@ -259,7 +268,7 @@ public class AuthInterceptorTest extends DatabaseTestFixture {
             "someConsumerOnlyMethod", String.class);
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status");
-        ResourceMethod rmethod = mock(ResourceMethod.class);
+        ResourceMethodInvoker rmethod = mock(ResourceMethodInvoker.class);
         when(rmethod.getMethod()).thenReturn(method);
         Class clazz = FakeResource.class;
         when(rmethod.getResourceClass()).thenReturn(clazz);

@@ -14,8 +14,7 @@
  */
 package org.candlepin.gutterball.resteasy.interceptor;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import org.candlepin.common.auth.SecurityHole;
 import org.candlepin.common.config.Configuration;
@@ -36,6 +35,7 @@ import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.HttpResponse;
 import org.jboss.resteasy.spi.MethodInjector;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
+import org.jboss.resteasy.spi.metadata.ResourceLocator;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,12 +47,11 @@ import net.oauth.OAuthAccessor;
 import net.oauth.OAuthConsumer;
 import net.oauth.OAuthMessage;
 
-import javax.inject.Provider;
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.WebApplicationException;
-
 import java.lang.reflect.Method;
 import java.util.Enumeration;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.WebApplicationException;
 
 
 
@@ -73,12 +72,11 @@ public class OAuthInterceptorTest {
         private StubMethodInjector stub;
 
         public StubInjectorFactoryImpl(ResteasyProviderFactory factory) {
-            super(factory);
             stub = new StubMethodInjector();
         }
 
         @Override
-        public MethodInjector createMethodInjector(Class root, Method method) {
+        public MethodInjector createMethodInjector(ResourceLocator method, ResteasyProviderFactory factory) {
             return stub;
         }
     }
@@ -109,6 +107,12 @@ public class OAuthInterceptorTest {
         @Override
         public ValueInjector[] getParams() {
             return null;
+        }
+
+        @Override
+        public boolean expectsBody() {
+            // TODO Auto-generated method stub
+            return false;
         }
     }
 

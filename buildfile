@@ -36,9 +36,9 @@ RESTEASY = [group('jaxrs-api',
                   # XXX: this version requires us to use
                   # ContentTypeHackFilter.java when updating,
                   # please check if its still needed, and remove if not.
-                  :version => '2.3.7.Final'),
+                  :version => '3.0.10.Final'),
             'org.scannotation:scannotation:jar:1.0.2',
-            'org.apache.httpcomponents:httpclient:jar:4.1.2',
+            'org.apache.httpcomponents:httpclient:jar:4.2.6',
             'org.apache.james:apache-mime4j:jar:0.6',
             'javax.mail:mail:jar:1.4']
 

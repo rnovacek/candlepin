@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 
 import org.candlepin.common.jackson.DynamicFilterData;
 
-import org.jboss.resteasy.core.ResourceMethod;
+import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.mock.MockHttpRequest;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
@@ -41,12 +41,12 @@ public class DynamicFilterInterceptorTest {
     @Mock private HttpRequest request;
 
     private DynamicFilterInterceptor interceptor;
-    private ResourceMethod rmethod;
+    private ResourceMethodInvoker rmethod;
 
     @Before
     public void init() {
         this.interceptor = new DynamicFilterInterceptor();
-        rmethod = mock(ResourceMethod.class);
+        rmethod = mock(ResourceMethodInvoker.class);
         ResteasyProviderFactory.popContextData(DynamicFilterData.class);
     }
 

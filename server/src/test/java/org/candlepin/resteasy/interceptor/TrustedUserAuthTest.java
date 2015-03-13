@@ -26,7 +26,6 @@ import org.candlepin.service.UserServiceAdapter;
 
 import com.google.inject.Injector;
 
-import org.jboss.resteasy.specimpl.HttpHeadersImpl;
 import org.jboss.resteasy.specimpl.MultivaluedMapImpl;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.junit.Before;
@@ -36,24 +35,29 @@ import org.mockito.MockitoAnnotations;
 import org.xnap.commons.i18n.I18n;
 import org.xnap.commons.i18n.I18nFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+
+import javax.ws.rs.core.HttpHeaders;
 
 public class TrustedUserAuthTest {
 
     @Mock private HttpRequest request;
-    private HttpHeadersImpl headers;
+    @Mock HttpHeaders headers;
     @Mock private UserServiceAdapter userService;
     @Mock private Injector injector;
     private TrustedUserAuth auth;
+    private MultivaluedMapImpl<String, String> requestHeaders = new MultivaluedMapImpl<String, String>();
+
 
     private static final String USERNAME = "myusername";
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        headers = new HttpHeadersImpl();
-        headers.setRequestHeaders(new MultivaluedMapImpl<String, String>());
         when(request.getHttpHeaders()).thenReturn(headers);
+        when(headers.getRequestHeaders()).thenReturn(requestHeaders);
         I18n i18n = I18nFactory.getI18n(getClass(), Locale.US, I18nFactory.FALLBACK);
         when(injector.getInstance(I18n.class)).thenReturn(i18n);
         this.auth = new TrustedUserAuth(userService, injector);
@@ -67,7 +71,10 @@ public class TrustedUserAuthTest {
 
     @Test
     public void normalTrustedAuth() throws Exception {
-        headers.getRequestHeaders().add(TrustedUserAuth.USER_HEADER, USERNAME);
+        requestHeaders.add(TrustedUserAuth.USER_HEADER, USERNAME);
+        List<String> names = new ArrayList<String>();
+        names.add(USERNAME);
+        when(headers.getRequestHeader(eq(TrustedUserAuth.USER_HEADER))).thenReturn(names);
         Principal p = auth.getPrincipal(request);
         assertTrue(p instanceof TrustedUserPrincipal);
         verify(userService, never()).validateUser(any(String.class), any(String.class));
@@ -77,10 +84,16 @@ public class TrustedUserAuthTest {
 
     @Test
     public void trustedAuthWithPermissionsLookup() throws Exception {
-        headers.getRequestHeaders().add(TrustedUserAuth.USER_HEADER, USERNAME);
-
+        requestHeaders.add(TrustedUserAuth.USER_HEADER, USERNAME);
         // Adding this header should cause the user to be loaded from the adapter:
-        headers.getRequestHeaders().add(TrustedUserAuth.LOOKUP_PERMISSIONS_HEADER, "true");
+        requestHeaders.add(TrustedUserAuth.LOOKUP_PERMISSIONS_HEADER, "true");
+
+        List<String> names = new ArrayList<String>();
+        names.add(USERNAME);
+        when(headers.getRequestHeader(eq(TrustedUserAuth.USER_HEADER))).thenReturn(names);
+        List<String> permissions = new ArrayList<String>();
+        permissions.add("true");
+        when(headers.getRequestHeader(eq(TrustedUserAuth.LOOKUP_PERMISSIONS_HEADER))).thenReturn(permissions);
 
         User u = new User(USERNAME, "pass");
         when(userService.findByLogin(eq(USERNAME))).thenReturn(u);

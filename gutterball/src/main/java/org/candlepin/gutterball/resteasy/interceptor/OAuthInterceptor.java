@@ -27,7 +27,7 @@ import com.google.inject.Injector;
 
 import org.jboss.resteasy.annotations.interception.SecurityPrecedence;
 import org.jboss.resteasy.annotations.interception.ServerInterceptor;
-import org.jboss.resteasy.core.ResourceMethod;
+import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.spi.Failure;
 import org.jboss.resteasy.spi.HttpRequest;
@@ -141,7 +141,7 @@ public class OAuthInterceptor implements PreProcessInterceptor, AcceptedByMethod
      *  A HttpRequest instance containing details for the request.
      *
      * @param method
-     *  A ResourceMethod instance representing the method to be invoked if the request is accepted.
+     *  A ResourceMethodInvoker instance representing the method to be invoked if the request is accepted.
      *
      * @throws Failure
      *  if Resteasy encounters an internal error.
@@ -154,7 +154,7 @@ public class OAuthInterceptor implements PreProcessInterceptor, AcceptedByMethod
      *  to be denied; null if the request is to be accepted.
      */
     @Override
-    public ServerResponse preProcess(HttpRequest request, ResourceMethod method) throws Failure,
+    public ServerResponse preProcess(HttpRequest request, ResourceMethodInvoker method) throws Failure,
         WebApplicationException {
         I18n i18n = this.i18nProvider.get();
 

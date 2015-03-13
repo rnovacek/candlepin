@@ -39,8 +39,7 @@ public class CandlepinConnection {
     public CandlepinConnection(Configuration config) {
         ResteasyProviderFactory rpf = ResteasyProviderFactory.getInstance();
         JsonProvider jsonprovider = new JsonProvider(config);
-        rpf.addMessageBodyReader(jsonprovider);
-        rpf.addMessageBodyWriter(jsonprovider);
+        rpf.registerProviderInstance(jsonprovider);
         RegisterBuiltin.register(rpf);
     }
 

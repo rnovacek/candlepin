@@ -21,7 +21,7 @@ import org.candlepin.common.exceptions.BadRequestException;
 import org.candlepin.common.guice.CommonI18nProvider;
 import org.candlepin.common.paging.PageRequest;
 
-import org.jboss.resteasy.core.ResourceMethod;
+import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.mock.MockHttpRequest;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.junit.Before;
@@ -43,14 +43,14 @@ public class PageRequestInterceptorTest {
 
     private javax.inject.Provider<I18n> i18nProvider;
     private PageRequestInterceptor interceptor;
-    private ResourceMethod rmethod;
+    private ResourceMethodInvoker rminvoker;
 
     @Before
     public void setUp() throws Exception {
         when(mockReq.getLocale()).thenReturn(Locale.US);
         this.i18nProvider = new CommonI18nProvider(this.mockReq);
         interceptor = new PageRequestInterceptor(this.i18nProvider);
-        rmethod = mock(ResourceMethod.class);
+        rminvoker = mock(ResourceMethodInvoker.class);
     }
 
     @Test
@@ -58,7 +58,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
 
         PageRequest p = ResteasyProviderFactory.getContextData(PageRequest.class);
         assertNull(p);
@@ -69,7 +69,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?per_page=10&page=4");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
 
         PageRequest p = ResteasyProviderFactory.getContextData(PageRequest.class);
         assertEquals(Integer.valueOf(10), p.getPerPage());
@@ -83,7 +83,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?page=5");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
 
         PageRequest p = ResteasyProviderFactory.getContextData(PageRequest.class);
         assertEquals(PageRequest.DEFAULT_PER_PAGE, p.getPerPage());
@@ -97,7 +97,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?per_page=10");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
 
         PageRequest p = ResteasyProviderFactory.getContextData(PageRequest.class);
         assertEquals(Integer.valueOf(10), p.getPerPage());
@@ -111,7 +111,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?page=foo&per_page=456");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
     }
 
     @Test(expected = BadRequestException.class)
@@ -119,7 +119,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?page=0&per_page=456");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
     }
 
     @Test
@@ -127,7 +127,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?order=asc&sort_by=id");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
 
         PageRequest p = ResteasyProviderFactory.getContextData(PageRequest.class);
         assertFalse(p.isPaging());
@@ -140,7 +140,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?sort_by=id");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
 
         PageRequest p = ResteasyProviderFactory.getContextData(PageRequest.class);
         assertFalse(p.isPaging());
@@ -153,7 +153,7 @@ public class PageRequestInterceptorTest {
         MockHttpRequest req = MockHttpRequest.create("GET",
             "http://localhost/candlepin/status?order=descending&sort_by=id");
 
-        interceptor.preProcess(req, rmethod);
+        interceptor.preProcess(req, rminvoker);
 
         PageRequest p = ResteasyProviderFactory.getContextData(PageRequest.class);
         assertFalse(p.isPaging());

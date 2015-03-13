@@ -15,6 +15,7 @@
 package org.candlepin.resteasy.interceptor;
 
 import static org.junit.Assert.*;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
 import org.candlepin.auth.Access;
@@ -29,8 +30,8 @@ import org.candlepin.service.UserServiceAdapter;
 import com.google.inject.Injector;
 
 import org.apache.commons.codec.binary.Base64;
-import org.jboss.resteasy.specimpl.HttpHeadersImpl;
 import org.jboss.resteasy.specimpl.MultivaluedMapImpl;
+import org.jboss.resteasy.specimpl.ResteasyHttpHeaders;
 import org.jboss.resteasy.spi.HttpRequest;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,17 +48,17 @@ import java.util.Set;
 public class BasicAuthViaUserServiceTest {
 
     @Mock private HttpRequest request;
-    private HttpHeadersImpl headers;
+    @Mock private ResteasyHttpHeaders headers;
     @Mock private UserServiceAdapter userService;
     @Mock private Injector injector;
     private BasicAuth auth;
+    private MultivaluedMapImpl<String, String> requestHeaders = new MultivaluedMapImpl<String, String>();
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        headers = new HttpHeadersImpl();
-        headers.setRequestHeaders(new MultivaluedMapImpl<String, String>());
         when(request.getHttpHeaders()).thenReturn(headers);
+        when(headers.getRequestHeaders()).thenReturn(requestHeaders);
         I18n i18n = I18nFactory.getI18n(getClass(), Locale.US, I18nFactory.FALLBACK);
         when(injector.getInstance(I18n.class)).thenReturn(i18n);
         this.auth = new BasicAuth(userService, injector);
@@ -80,7 +81,7 @@ public class BasicAuthViaUserServiceTest {
      */
     @Test
     public void notBasicAuth() throws Exception {
-        headers.getRequestHeaders().add("Authorization", "DIGEST username=billy");
+        requestHeaders.add("Authorization", "DIGEST username=billy");
         assertNull(this.auth.getPrincipal(request));
     }
 
@@ -92,6 +93,8 @@ public class BasicAuthViaUserServiceTest {
     @Test(expected = UnauthorizedException.class)
     public void invalidUserPassword() throws Exception {
         setUserAndPassword("billy", "madison");
+        when(request.getHttpHeaders().getRequestHeader(eq("Authorization")))
+            .thenReturn(requestHeaders.get("Authorization"));
         when(userService.validateUser("billy", "madison")).thenReturn(false);
         assertNull(this.auth.getPrincipal(request));
     }
@@ -106,6 +109,8 @@ public class BasicAuthViaUserServiceTest {
         Owner owner = new Owner("user", "user");
 
         setUserAndPassword("user", "redhat");
+        when(request.getHttpHeaders().getRequestHeader(eq("Authorization")))
+            .thenReturn(requestHeaders.get("Authorization"));
         when(userService.validateUser("user", "redhat")).thenReturn(true);
         // TODO: test will fail, need to mock the permissions setup
 
@@ -124,6 +129,8 @@ public class BasicAuthViaUserServiceTest {
         Owner owner = new Owner("user", "user");
 
         setUserAndPassword("user", "1:2");
+        when(request.getHttpHeaders().getRequestHeader(eq("Authorization")))
+            .thenReturn(requestHeaders.get("Authorization"));
         when(userService.validateUser("user", "1:2")).thenReturn(true);
 
 
@@ -141,6 +148,8 @@ public class BasicAuthViaUserServiceTest {
         Owner owner = new Owner("user", "user");
 
         setUserNoPassword("user");
+        when(request.getHttpHeaders().getRequestHeader(eq("Authorization")))
+            .thenReturn(requestHeaders.get("Authorization"));
         when(userService.validateUser("user", null)).thenReturn(true);
 
 
@@ -157,12 +166,12 @@ public class BasicAuthViaUserServiceTest {
     // TODO:  Add in owner creation/retrieval tests?
 
     private void setUserAndPassword(String username, String password) {
-        headers.getRequestHeaders().add("Authorization",
+        requestHeaders.add("Authorization",
             "BASIC " + encodeUserAndPassword(username, password));
     }
 
     private void setUserNoPassword(String username) {
-        headers.getRequestHeaders().add("Authorization",
+        requestHeaders.add("Authorization",
             "BASIC " + encodeUserNoPassword(username));
     }
 

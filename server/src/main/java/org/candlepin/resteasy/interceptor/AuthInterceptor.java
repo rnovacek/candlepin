@@ -57,7 +57,7 @@ import com.google.inject.Injector;
 
 import org.jboss.resteasy.annotations.interception.SecurityPrecedence;
 import org.jboss.resteasy.annotations.interception.ServerInterceptor;
-import org.jboss.resteasy.core.ResourceMethod;
+import org.jboss.resteasy.core.ResourceMethodInvoker;
 import org.jboss.resteasy.core.ServerResponse;
 import org.jboss.resteasy.spi.Failure;
 import org.jboss.resteasy.spi.HttpRequest;
@@ -66,6 +66,7 @@ import org.jboss.resteasy.spi.MethodInjector;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.jboss.resteasy.spi.interception.AcceptedByMethod;
 import org.jboss.resteasy.spi.interception.PreProcessInterceptor;
+import org.jboss.resteasy.spi.metadata.ResourceLocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -197,7 +198,7 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
      * @throws Failure when there is an unknown failure in the code
      * @return the Server Response
      */
-    public ServerResponse preProcess(HttpRequest request, ResourceMethod method)
+    public ServerResponse preProcess(HttpRequest request, ResourceMethodInvoker method)
         throws Failure, WebApplicationException {
 
         SecurityHole securityHole = AuthUtil.checkForSecurityHoleAnnotation(
@@ -237,7 +238,7 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
         return null;
     }
 
-    protected Principal establishPrincipal(HttpRequest request, ResourceMethod method,
+    protected Principal establishPrincipal(HttpRequest request, ResourceMethodInvoker method,
         SecurityHole securityHole) {
 
         Principal principal = null;
@@ -417,13 +418,15 @@ public class AuthInterceptor implements PreProcessInterceptor, AcceptedByMethod 
      * @param method
      * @return
      */
-    protected Object[] getArguments(HttpRequest request, ResourceMethod method) {
+    protected Object[] getArguments(HttpRequest request, ResourceMethodInvoker method) {
         HttpResponse response =
             ResteasyProviderFactory.getContextData(HttpResponse.class);
+        ResourceLocator locator =
+            ResteasyProviderFactory.getContextData(ResourceLocator.class);
+        ResteasyProviderFactory factory = ResteasyProviderFactory.getInstance();
 
         MethodInjector methodInjector =
-            ResteasyProviderFactory.getInstance().getInjectorFactory()
-            .createMethodInjector(method.getResourceClass(), method.getMethod());
+            factory.getInjectorFactory().createMethodInjector(locator, factory);
 
         return methodInjector.injectArguments(request, response);
     }
