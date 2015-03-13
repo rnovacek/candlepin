@@ -141,7 +141,8 @@ public class OAuthInterceptorTest {
         this.i18nProvider = (javax.inject.Provider<I18n>) this.injector.getInstance(I18nProvider.class);
         this.interceptor = new OAuthInterceptor(this.injector, config, this.i18nProvider);
 
-        ResteasyProviderFactory.getInstance().registerProvider(StubInjectorFactoryImpl.class);
+        ResteasyProviderFactory.getInstance().registerProviderInstance(
+                new StubInjectorFactoryImpl(ResteasyProviderFactory.getInstance()));
         this.methodInjector = (StubMethodInjector)
             ResteasyProviderFactory.getInstance().getInjectorFactory().createMethodInjector(null, null);
 

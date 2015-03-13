@@ -21,6 +21,7 @@ import org.junit.Test;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.StatusType;
 
 /**
  * WebApplicationExceptionMapper
@@ -30,7 +31,11 @@ public class WebApplicationExceptionMapperTest extends TestExceptionMapperBase {
     @Test
     public void handleExceptionWithResponse() {
         Response mockr = mock(Response.class);
-        when(mockr.getStatus()).thenReturn(500);
+        StatusType mockst = mock(StatusType.class);
+        when(mockr.getStatusInfo()).thenReturn(mockst);
+        when(mockst.getStatusCode()).thenReturn(500);
+        when(mockst.getReasonPhrase()).thenReturn("Internal Server Error");
+
         WebApplicationException nfe = new WebApplicationException(mockr);
         WebApplicationExceptionMapper nfem =
             injector.getInstance(WebApplicationExceptionMapper.class);

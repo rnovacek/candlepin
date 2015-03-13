@@ -50,6 +50,9 @@ public abstract class TestExceptionMapperBase {
     }
 
     protected String rtmsg(String msg) {
+        if (msg == null) {
+            msg = "";
+        }
         return "Runtime Error " + msg;
     }
 
