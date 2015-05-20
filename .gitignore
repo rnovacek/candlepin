@@ -35,6 +35,8 @@
 **/target-eclipse/
 **/bin/qpid/keys
 
+.victims_cache # Used by the Victims vulnerability checker
+
 buildconf/builder/config/local
 client.crt
 client.key

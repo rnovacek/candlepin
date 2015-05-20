@@ -1,7 +1,7 @@
 # vi: set ft=ruby:
 
 ### Repositories
-repositories.remote << "http://jmrodri.fedorapeople.org/ivy/candlepin/"
+repositories.remote << "http://awood.fedorapeople.org/ivy/candlepin/"
 repositories.remote << "http://repository.jboss.org/nexus/content/groups/public/"
 repositories.remote << "http://gettext-commons.googlecode.com/svn/maven-repository/"
 repositories.remote << "http://oauth.googlecode.com/svn/code/maven/"
@@ -200,7 +200,7 @@ define "candlepin" do
   use_logdriver = ENV['logdriver']
   if use_logdriver
     info "Compiling with logdriver"
-    download artifact(LOGDRIVER) => 'http://jmrodri.fedorapeople.org/ivy/candlepin/logdriver/logdriver/1.0/logdriver-1.0.jar'
+    download artifact(LOGDRIVER) => 'http://awood.fedorapeople.org/ivy/candlepin/logdriver/logdriver/1.0/logdriver-1.0.jar'
   end
   download artifact(SCHEMASPY) => 'http://downloads.sourceforge.net/project/schemaspy/schemaspy/SchemaSpy%204.1.1/schemaSpy_4.1.1.jar'
 
@@ -226,7 +226,7 @@ define "candlepin" do
       RESTEASY,
       JACKSON,
       JAVAX,
-      OAUTH
+      OAUTH,
     ]
 
     compile.with(compile_classpath)
@@ -239,8 +239,13 @@ define "candlepin" do
     ])
     test.using :java_args => [ '-Xmx2g', '-XX:+HeapDumpOnOutOfMemoryError' ]
 
-    common_jar = package(:jar).tap do |jar|
+    package(:jar).tap do |jar|
       jar.include(:from => msgfmt.destination)
+    end
+
+    pom.plugin_procs << Proc.new do |xml, proj|
+      xml.groupId("org.owasp")
+      xml.artifactId("dependency-check-maven")
     end
   end
 
@@ -335,12 +340,17 @@ define "candlepin" do
     ])
     test.using :java_args => [ '-Xmx2g', '-XX:+HeapDumpOnOutOfMemoryError' ]
 
-    gutterball_war = package(:war, :id=>"gutterball").tap do |war|
+    package(:war, :id=>"gutterball").tap do |war|
       war.libs -= artifacts(PROVIDED)
       war.classes << resources.target
       war.classes << msgfmt.destination if msgfmt.enabled?
     end
     pom.provided_dependencies = PROVIDED
+
+    pom.plugin_procs << Proc.new do |xml, proj|
+      xml.groupId("org.owasp")
+      xml.artifactId("dependency-check-maven")
+    end
   end
 
   desc "The Candlepin Server"
@@ -427,7 +437,7 @@ define "candlepin" do
 
     pom.provided_dependencies = PROVIDED
 
-    api_jar = package(:jar, :id=>'candlepin-api').tap do |jar|
+    package(:jar, :id=>'candlepin-api').tap do |jar|
       jar.clean
       pkgs = %w{auth config jackson model pki resteasy service util}.map { |pkg| "#{compiled_cp_path}/#{pkg}" }
       p = jar.path(candlepin_path)
@@ -441,7 +451,7 @@ define "candlepin" do
       p.include(pkgs)
     end
 
-    war_file = package(:war, :id=>"candlepin").tap do |war|
+    package(:war, :id=>"candlepin").tap do |war|
       war.libs += artifacts(HSQLDB)
       war.libs -= artifacts(PROVIDED)
       war.classes.clear
@@ -449,6 +459,11 @@ define "candlepin" do
       war.classes << msgfmt.destination if msgfmt.enabled?
       web_inf = war.path('WEB-INF/classes')
       web_inf.path(candlepin_path).include("#{compiled_cp_path}/**")
+    end
+
+    pom.plugin_procs << Proc.new do |xml, proj|
+      xml.groupId("org.owasp")
+      xml.artifactId("dependency-check-maven")
     end
 
     desc 'Crawl the REST API and print a summary.'
