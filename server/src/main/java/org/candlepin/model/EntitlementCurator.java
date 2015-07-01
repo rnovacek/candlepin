@@ -183,6 +183,14 @@ public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
             for (Product pp : e.getPool().getProvidedProducts()) {
                 entitledProductIds.add(pp.getId());
             }
+
+            // Add derivedProvidedProducts if consumer is a distributor.
+            if (c.getType().isManifest()) {
+                entitledProductIds.add(e.getPool().getDerivedProduct().getId());
+                for (Product dpp : e.getPool().getDerivedProvidedProducts()) {
+                    entitledProductIds.add(dpp.getId());
+                }
+            }
         }
         return entitledProductIds;
 
