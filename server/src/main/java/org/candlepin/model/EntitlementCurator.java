@@ -189,6 +189,9 @@ public class EntitlementCurator extends AbstractHibernateCurator<Entitlement> {
                 entitledProductIds.add(e.getPool().getDerivedProduct().getId());
                 for (Product dpp : e.getPool().getDerivedProvidedProducts()) {
                     entitledProductIds.add(dpp.getId());
+                    for (ProductContent pc : dpp.getProductContent()) {
+                        entitledProductIds.addAll(pc.getContent().getModifiedProductIds());
+                    }
                 }
             }
         }
