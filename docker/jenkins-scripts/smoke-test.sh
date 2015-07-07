@@ -41,7 +41,8 @@ def run_command(command, silent=True, ignore_error=False):
 
     for line in run_subprocess(p):
         line = line.rstrip('\n')
-        if not silent: print(line)
+        # if not silent: print(line)
+        print(line)
         output.append(line)
 
     if p.poll() > 0 and not ignore_error:
